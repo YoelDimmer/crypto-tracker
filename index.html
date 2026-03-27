@@ -555,11 +555,13 @@ function renderWallets(){
           bHTML='<span style="color:var(--mut);font-size:11px;font-family:var(--mono)">Sin balance</span>';
         } else {
           // Sort by USD value descending
-          const sortedDetail = [...detail].sort((a,b)=>{
-            const usdA=a.amount*tokPrice(a.token);
-            const usdB=b.amount*tokPrice(b.token);
-            return usdB-usdA;
-          });
+          const sortedDetail = [...detail]
+            .filter(d=>d.amount*tokPrice(d.token)>=5||STABLES.includes(d.token)&&d.amount>=1)
+            .sort((a,b)=>{
+              const usdA=a.amount*tokPrice(a.token);
+              const usdB=b.amount*tokPrice(b.token);
+              return usdB-usdA;
+            });
           bHTML = sortedDetail.map(d=>{
             const cc = CHAIN_COLORS[d.chain]||{bg:'#ffffff11',color:'#aaa',label:d.chain.toUpperCase()};
             const usd = d.amount * tokPrice(d.token);
@@ -625,7 +627,7 @@ function renderSummary(){
         const usdStr=usdVal!==0?` <span style="color:var(--mut);font-size:10px">(${usdVal>=0?'+':''}${fUSD(Math.abs(usdVal))})</span>`:'';
         return`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>${usdStr}`;
       }).join('<br>');
-      cSub.textContent='vs snapshot '+prev.date;
+      cSub.textContent='vs ayer';
     }else{cEl.innerHTML='<span style="color:var(--mut)">Sin cambios</span>';cSub.textContent='vs '+prev.date;}
   }else{cEl.innerHTML='—';cSub.textContent='Guardá un snapshot';}
 
@@ -677,7 +679,7 @@ function renderSummary(){
           const usdStr=` <span style="color:var(--mut);font-size:10px">(${usdVal>=0?'+':''}${fUSD(Math.abs(usdVal))})</span>`;
           return`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>${usdStr}`;
         }).join('<br>');
-        pnlMCSub.textContent='vs '+firstM.date+' · >$5 USD';
+        pnlMCSub.textContent='vs inicio de mes';
       } else {
         pnlMCEl.innerHTML='<span style="color:var(--mut)">Sin cambios significativos</span>';
         pnlMCSub.textContent='vs '+firstM.date;
