@@ -659,10 +659,11 @@ function renderOps(){
   tbody.innerHTML=sorted.map(o=>{
     const tm={realize:'tag-real',transfer:'tag-xfer',adjust:'tag-adj'};
     const tl={realize:'Realizar',transfer:'Transfer',adjust:'Ajuste'};
+    const subLabel=o.dirLabel||'';
     const qty=o.qty!=null?((o.qty>=0?'+':'')+fAmt(o.qty)+' '+o.token):'—';
     return`<tr>
       <td>${o.date}</td>
-      <td><span class="tag ${tm[o.type]||''}">${tl[o.type]||o.type}</span></td>
+      <td><span class="tag ${tm[o.type]||''}">${tl[o.type]||o.type}</span>${subLabel?`<span style="font-size:9px;color:var(--mut);font-family:var(--mono);margin-left:4px">${subLabel}</span>`:''}</td>
       <td style="color:var(--mut);max-width:200px">${o.desc||'—'}</td>
       <td>${o.token||'—'}</td>
       <td class="${o.qty>=0?'pos':'neg'}">${qty}</td>
@@ -767,18 +768,41 @@ function openModal(type,wid){
   }
 
   if(type==='transfer'){
-    const wOpts=wallets.map(w=>{const chains=(w.chains||[w.chain]).map(c=>CHAINS[c]?.name||c).join(', ');return`<option value="${w.id}">${w.name||short(w.address)} (${chains})</option>`;}).join('');
-    box.innerHTML=`<h2>⇄ Transfer Interna</h2>
-      <p class="note">Movimiento entre tus wallets propias. Se registra y <strong>no afecta el P&L</strong>. El sistema lo tendrá en cuenta al comparar snapshots.</p>
-      <div class="frow" style="margin-top:14px">
-        <div class="fg"><label class="flbl">Origen</label><select class="fsel" id="mXF">${wOpts}</select></div>
-        <div class="fg"><label class="flbl">Destino</label><select class="fsel" id="mXT">${wOpts}</select></div>
+    const myWOpts=wallets.map(w=>{const chains=(w.chains||[w.chain]).map(c=>CHAINS[c]?.name||c).join(', ');return`<option value="${w.id}">${w.name||short(w.address)} (${chains})</option>`;}).join('');
+    const extOpt='<option value="_ext">Wallet externa (otra persona / exchange)</option>';
+    box.innerHTML=`<h2>⇄ Registrar Movimiento</h2>
+      <p class="note">Tanto las transferencias entre tus wallets como los movimientos a/desde wallets externas se registran <strong>sin afectar el P&L</strong>. El cambio de balance se detecta solo al comparar snapshots.</p>
+      <div class="fg" style="margin-top:14px">
+        <label class="flbl">Dirección del movimiento</label>
+        <select class="fsel" id="mXDir" onchange="updXferDir()">
+          <option value="between">Entre mis wallets</option>
+          <option value="out">Envié a wallet externa (salida)</option>
+          <option value="in">Recibí de wallet externa (entrada)</option>
+        </select>
       </div>
-      <div class="frow">
+      <div id="mXBetweenWrap">
+        <div class="frow">
+          <div class="fg"><label class="flbl">Origen (mi wallet)</label><select class="fsel" id="mXF">${myWOpts}</select></div>
+          <div class="fg"><label class="flbl">Destino (mi wallet)</label><select class="fsel" id="mXT">${myWOpts}</select></div>
+        </div>
+      </div>
+      <div id="mXOutWrap" style="display:none">
+        <div class="frow">
+          <div class="fg"><label class="flbl">Desde (mi wallet)</label><select class="fsel" id="mXFromMy">${myWOpts}</select></div>
+          <div class="fg"><label class="flbl">Hacia (wallet externa)</label><input class="finp" id="mXToExt" placeholder="Dirección o nombre (ej: Binance)"></div>
+        </div>
+      </div>
+      <div id="mXInWrap" style="display:none">
+        <div class="frow">
+          <div class="fg"><label class="flbl">Desde (wallet externa)</label><input class="finp" id="mXFromExt" placeholder="Dirección o nombre (ej: Kraken)"></div>
+          <div class="fg"><label class="flbl">Hacia (mi wallet)</label><select class="fsel" id="mXToMy">${myWOpts}</select></div>
+        </div>
+      </div>
+      <div class="frow" style="margin-top:4px">
         <div class="fg"><label class="flbl">Token</label><select class="fsel" id="mXTK">${ALL_TOKENS.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></div>
         <div class="fg"><label class="flbl">Cantidad</label><input class="finp" id="mXQ" type="number" step="any" placeholder="0.00"></div>
       </div>
-      <div class="fg"><label class="flbl">Notas</label><input class="finp" id="mXN" placeholder="ej: consolidé a wallet fría"></div>
+      <div class="fg"><label class="flbl">Motivo / Notas</label><input class="finp" id="mXN" placeholder="ej: retiro a exchange, pago a proveedor, recibí de amigo..."></div>
       <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitTransfer()">Registrar</button></div>`;
     return;
   }
@@ -844,16 +868,58 @@ function submitRealize(wid){
   alert(`✓ Registrado: ${fAmt(qty,4)} ${tok} → ${fUSD(usd)} ${stable}`);
 }
 
+function updXferDir(){
+  const dir=document.getElementById('mXDir').value;
+  document.getElementById('mXBetweenWrap').style.display=dir==='between'?'block':'none';
+  document.getElementById('mXOutWrap').style.display=dir==='out'?'block':'none';
+  document.getElementById('mXInWrap').style.display=dir==='in'?'block':'none';
+}
+
 function submitTransfer(){
-  const from=document.getElementById('mXF').value;const to=document.getElementById('mXT').value;
-  const tok=document.getElementById('mXTK').value;const qty=parseFloat(document.getElementById('mXQ').value);
+  const dir=document.getElementById('mXDir').value;
+  const tok=document.getElementById('mXTK').value;
+  const qty=parseFloat(document.getElementById('mXQ').value);
   const note=document.getElementById('mXN').value.trim();
   if(!qty||qty<=0){alert('Ingresá una cantidad.');return;}
-  if(from===to){alert('Origen y destino deben ser distintos.');return;}
-  const wF=wallets.find(x=>x.id===from);const wT=wallets.find(x=>x.id===to);
-  ops.push({id:uid(),type:'transfer',date:today(),token:tok,qty,desc:note||(qty+' '+tok+' · '+short(wF?.address)+' → '+short(wT?.address)),walletName:(wF?.name||short(wF?.address))+'→'+(wT?.name||short(wT?.address))});
+
+  let fromName='',toName='',desc='';
+
+  if(dir==='between'){
+    const fromId=document.getElementById('mXF').value;
+    const toId=document.getElementById('mXT').value;
+    if(fromId===toId){alert('Origen y destino deben ser distintos.');return;}
+    const wF=wallets.find(x=>x.id===fromId);
+    const wT=wallets.find(x=>x.id===toId);
+    fromName=wF?.name||short(wF?.address||'');
+    toName=wT?.name||short(wT?.address||'');
+    desc=note||(fAmt(qty,4)+' '+tok+' · '+fromName+' → '+toName);
+  } else if(dir==='out'){
+    const fromId=document.getElementById('mXFromMy').value;
+    const extAddr=document.getElementById('mXToExt').value.trim();
+    if(!extAddr){alert('Ingresá la wallet o nombre de destino.');return;}
+    const wF=wallets.find(x=>x.id===fromId);
+    fromName=wF?.name||short(wF?.address||'');
+    toName=extAddr;
+    desc=note||(fAmt(qty,4)+' '+tok+' enviados desde '+fromName+' → '+extAddr);
+  } else if(dir==='in'){
+    const extAddr=document.getElementById('mXFromExt').value.trim();
+    const toId=document.getElementById('mXToMy').value;
+    if(!extAddr){alert('Ingresá la wallet o nombre de origen.');return;}
+    const wT=wallets.find(x=>x.id===toId);
+    fromName=extAddr;
+    toName=wT?.name||short(wT?.address||'');
+    desc=note||(fAmt(qty,4)+' '+tok+' recibidos de '+extAddr+' → '+toName);
+  }
+
+  const dirLabel={between:'Entre mis wallets',out:'Envío externo',in:'Recepción externa'};
+  ops.push({
+    id:uid(),type:'transfer',date:today(),token:tok,qty,
+    desc,walletName:fromName+'→'+toName,
+    subtype:dir,dirLabel:dirLabel[dir]||'Transfer'
+  });
   localStorage.setItem('ct_ops',JSON.stringify(ops));
-  closeModal();renderOps();alert('✓ Transfer registrada. No afecta el P&L.');
+  closeModal();renderOps();
+  alert('✓ Movimiento registrado. No afecta el P&L.');
 }
 
 function submitAdjust(){
