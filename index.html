@@ -123,7 +123,9 @@ tr:last-child td{border-bottom:none}
     <div class="upd"><span class="dot" id="statusDot"></span><span id="lastUpd">Sin actualizar</span></div>
   </div>
   <div class="hdr-right">
-    <button class="btn btn-gho" onclick="openModal('transfer')">⇄ Transfer Interna</button>
+    <button class="btn btn-gho" onclick="importData()" title="Importar backup">📥 Importar</button>
+    <button class="btn btn-gho" onclick="exportData()" title="Exportar backup">📤 Exportar</button>
+    <button class="btn btn-gho" onclick="openModal('transfer')">⇄ Transfer</button>
     <button class="btn btn-gho" onclick="openAddWallet()">+ Wallet</button>
     <button class="btn btn-pri" onclick="refreshAll()">↻ Actualizar</button>
   </div>
@@ -241,6 +243,39 @@ let balances={};
 let chartMode='total';
 let portfolioChart=null,distChart=null;
 
+// ── EXPORT / IMPORT (backup to file) ──
+function exportData(){
+  const data={wallets,snapshots,ops,exportedAt:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='crypto-tracker-backup-'+today()+'.json';
+  a.click();
+}
+function importData(){
+  const input=document.createElement('input');
+  input.type='file';input.accept='.json';
+  input.onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        if(!data.wallets||!data.snapshots){alert('Archivo inválido.');return;}
+        if(!confirm('¿Importar datos? Esto reemplazará los datos actuales.'))return;
+        wallets=data.wallets;snapshots=data.snapshots;ops=data.ops||[];
+        localStorage.setItem('ct_wallets',JSON.stringify(wallets));
+        localStorage.setItem('ct_snaps',JSON.stringify(snapshots));
+        localStorage.setItem('ct_ops',JSON.stringify(ops));
+        alert('✓ Datos importados correctamente.');
+        location.reload();
+      }catch(e){alert('Error al leer el archivo: '+e.message);}
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
 // CHAINS
 const CHAINS={
   eth:{name:'Ethereum',sym:'ETH',id:'ethereum',cls:'ceth',evm:true},
@@ -340,9 +375,9 @@ async function fetchEVM(addr,chain){
 
 // Solana: multi-endpoint with CORS support for file:// origins
 const SOL_ENDPOINTS = [
-  'https://mainnet.helius-rpc.com/?api-key=15319bf7-35a9-4b21-b7f8-b51616afcb43',
+  // These endpoints work from https:// origins without API key
+  'https://solana-rpc.publicnode.com',
   'https://rpc.ankr.com/solana',
-  'https://solana-mainnet.rpc.extrnode.com',
   'https://api.mainnet-beta.solana.com',
 ];
 // Stablecoin mint addresses on Solana
@@ -352,23 +387,21 @@ const SOL_MINTS = {
 };
 
 async function solPost(method, params){
-  // Try each endpoint until one works
-  const endpoints = [
-    ...SOL_ENDPOINTS,
-    'https://api.mainnet-beta.solana.com',
-  ];
-  for(const url of endpoints){
+  for(const url of SOL_ENDPOINTS){
     try{
       const r = await fetch(url, {
         method: 'POST',
+        mode: 'cors',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({jsonrpc:'2.0', id:1, method, params})
+        body: JSON.stringify({jsonrpc:'2.0', id:Math.floor(Math.random()*9999), method, params})
       });
-      if(!r.ok) continue;
+      if(!r.ok){ console.warn('SOL RPC',url,'status',r.status); continue; }
       const j = await r.json();
-      if(j?.result !== undefined && !j?.error) return j.result;
-    } catch(e) { continue; }
+      if(j?.error){ console.warn('SOL RPC error',j.error); continue; }
+      if(j?.result !== undefined) return j.result;
+    } catch(e){ console.warn('SOL fetch failed',url,e.message); continue; }
   }
+  console.error('All Solana RPCs failed');
   return null;
 }
 
@@ -865,28 +898,10 @@ async function refreshAll(){
 
 (async()=>{renderWallets();renderSummary();await refreshAll();})();
 
-// ── Auto-refresh at 5:00 AM Argentina time (UTC-3) ──
-function scheduleAutoRefresh(){
-  const now = new Date();
-  // Argentina is UTC-3
-  const argNow = new Date(now.getTime() - 3*60*60*1000);
-  const nextRun = new Date(argNow);
-  nextRun.setHours(5, 0, 0, 0);
-  if(argNow >= nextRun) nextRun.setDate(nextRun.getDate() + 1);
-  const msUntil = nextRun - argNow;
-  const hh = Math.floor(msUntil/3600000);
-  const mm = Math.floor((msUntil%3600000)/60000);
-  console.log(`Auto-refresh en ${hh}h ${mm}m (5:00 AM Argentina)`);
-  setTimeout(async()=>{
-    await refreshAll();
-    saveSnapshot(); // auto-save daily snapshot
-    scheduleAutoRefresh(); // reschedule for next day
-  }, msUntil);
-}
-scheduleAutoRefresh();
-
-// Also refresh every 15 minutes while the page is open
+// Actualiza precios y balances cada 15 minutos (sin guardar snapshot)
 setInterval(()=>{ refreshAll(); }, 15 * 60 * 1000);
+
+
 </script>
 </body>
 </html>
