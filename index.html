@@ -141,11 +141,25 @@ tr:last-child td{border-bottom:none}
 
 <div class="sumgrid">
   <div class="card"><div class="clbl">Total Portfolio</div><div class="cval" id="totUSD">$0.00</div><div class="csub" id="totSub">—</div></div>
-  <div class="card"><div class="clbl">P&L Hoy (USD)</div><div class="cval" id="pnlDayUSD">—</div><div class="csub" id="pnlDaySub">—</div></div>
-  <div class="card"><div class="clbl">P&L Hoy (Cripto)</div><div class="cval" id="pnlDayCrypto" style="font-size:14px;line-height:1.7">—</div><div class="csub" id="pnlDayCryptoSub">vs snapshot anterior</div></div>
+  <div class="card">
+    <div class="clbl">P&L Hoy</div>
+    <div class="cval" id="pnlDayUSD">—</div>
+    <div class="csub" id="pnlDaySub">—</div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr)">
+      <div class="clbl" style="margin-bottom:4px">En Tokens</div>
+      <div id="pnlDayCrypto" style="font-size:12px;font-family:var(--mono);line-height:1.8;color:var(--txt)">—</div>
+      <div class="csub" id="pnlDayCryptoSub" style="margin-top:2px">vs snapshot anterior</div>
+    </div>
+  </div>
   <div class="card"><div class="clbl">P&L Este Mes</div><div class="cval" id="pnlMon">—</div><div class="csub" id="pnlMonSub">—</div></div>
   <div class="card"><div class="clbl">P&L Este Año</div><div class="cval" id="pnlYr">—</div><div class="csub" id="pnlYrSub">—</div></div>
   <div class="card"><div class="clbl">Ganancias Realizadas</div><div class="cval pos" id="realized">$0.00</div><div class="csub" id="realizedSub">0 operaciones</div></div>
+  <div class="card" style="border-color:var(--acc2)33">
+    <div class="clbl">Tokens Externos</div>
+    <div id="ingresoMan" style="font-size:12px;font-family:var(--mono);line-height:1.9;margin-bottom:6px;color:var(--txt)">—</div>
+    <div class="csub" id="ingresoManSub">TON, TRX, ARB, etc</div>
+    <button class="btn btn-gho" style="margin-top:10px;width:100%;font-size:11px;padding:6px" onclick="openModal('ingreso')">+ Agregar Ingreso</button>
+  </div>
 </div>
 
 <div class="tabs">
@@ -215,8 +229,9 @@ tr:last-child td{border-bottom:none}
     <span class="sectit">Operaciones</span>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-gho btn-sm" onclick="openModal('realize')">💰 Realizar Ganancia</button>
+      <button class="btn btn-gho btn-sm" onclick="openModal('ingreso')">💸 Ingreso Manual</button>
       <button class="btn btn-gho btn-sm" onclick="openModal('adjust')">✏️ Ajuste Manual</button>
-      <button class="btn btn-gho btn-sm" onclick="openModal('transfer')">⇄ Transfer Interna</button>
+      <button class="btn btn-gho btn-sm" onclick="openModal('transfer')">⇄ Transfer</button>
     </div>
   </div>
   <div class="tbl-wrap">
@@ -460,11 +475,23 @@ async function fetchWallet(w){
 // AGGREGATION
 function aggregateTokens(){
   const t={};
+  // Wallet balances
   for(const w of wallets){
     const b=balances[w.id]||{};
     for(const[tk,amt]of Object.entries(b)){
       if(tk==='_error'||tk==='_detail')continue;
       t[tk]=(t[tk]||0)+amt;
+    }
+  }
+  // Add manual ingresos (positive) and realized manual gains (negative when sold)
+  // Net per token from ingreso ops
+  for(const op of ops){
+    if(op.type==='ingreso'&&op.token&&op.qty>0){
+      t[op.token]=(t[op.token]||0)+op.qty;
+    }
+    // If a realize op references a manual token (non-wallet), subtract it
+    if(op.type==='realize'&&op.token&&op.qty<0&&op.isManual){
+      t[op.token]=(t[op.token]||0)+op.qty; // qty is already negative
     }
   }
   return t;
@@ -577,17 +604,46 @@ function renderSummary(){
     pnlDSub.textContent=(pct?fPct(pct)+' · ':'')+`vs ${prev.date}`;
   }else{pnlDEl.textContent='—';pnlDEl.className='cval';pnlDSub.textContent='Guardá un snapshot';}
 
-  // Daily CRYPTO diff
+  // Daily CRYPTO diff — show tokens gained/lost with USD equivalent
   const cEl=document.getElementById('pnlDayCrypto');
   const cSub=document.getElementById('pnlDayCryptoSub');
   if(prev?.tokens){
     const diff=tokenDiff(prev.tokens,toks);
     const entries=Object.entries(diff).filter(([,v])=>Math.abs(v)>0.000001);
     if(entries.length){
-      cEl.innerHTML=entries.map(([tk,v])=>`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>`).join('<br>');
+      cEl.innerHTML=entries.map(([tk,v])=>{
+        const usdVal=v*tokPrice(tk);
+        const usdStr=usdVal!==0?` <span style="color:var(--mut);font-size:10px">(${usdVal>=0?'+':''}${fUSD(Math.abs(usdVal))})</span>`:'';
+        return`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>${usdStr}`;
+      }).join('<br>');
       cSub.textContent='vs snapshot '+prev.date;
-    }else{cEl.innerHTML='Sin cambios detectados';cEl.className='cval';cSub.textContent='vs '+prev.date;}
-  }else{cEl.innerHTML='—';cEl.className='cval';cSub.textContent='Guardá un snapshot';}
+    }else{cEl.innerHTML='<span style="color:var(--mut)">Sin cambios</span>';cSub.textContent='vs '+prev.date;}
+  }else{cEl.innerHTML='—';cSub.textContent='Guardá un snapshot';}
+
+  // Tokens externos (ingresos manuales) — show per token net balance
+  const ingrOps=ops.filter(o=>o.type==='ingreso');
+  const ingrEl=document.getElementById('ingresoMan');
+  const ingrSub=document.getElementById('ingresoManSub');
+  if(!ingrOps.length){
+    ingrEl.innerHTML='<span style="color:var(--mut)">Sin registros</span>';
+    ingrSub.textContent='TON, TRX, ARB, etc';
+  } else {
+    // Net per token
+    const netToks={};
+    for(const op of ingrOps) netToks[op.token]=(netToks[op.token]||0)+op.qty;
+    // Subtract realized manual
+    for(const op of ops.filter(o=>o.type==='realize'&&o.isManual)){
+      if(op.token) netToks[op.token]=(netToks[op.token]||0)+op.qty; // qty negative
+    }
+    ingrEl.innerHTML=Object.entries(netToks)
+      .filter(([,v])=>Math.abs(v)>0.000001)
+      .map(([tk,v])=>{
+        const usd=v*tokPrice(tk);
+        const usdStr=usd?` <span style="color:var(--mut);font-size:10px">${fUSD(usd)}</span>`:'';
+        return`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>${usdStr}`;
+      }).join('<br>')||'<span style="color:var(--mut)">Sin saldo</span>';
+    ingrSub.textContent=ingrOps.length+' ingreso'+(ingrOps.length!==1?'s':'');
+  }
 
   // Monthly
   const nowD=new Date();
@@ -657,8 +713,8 @@ function renderOps(){
   if(!ops.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr>';return;}
   const sorted=[...ops].sort((a,b)=>b.date.localeCompare(a.date));
   tbody.innerHTML=sorted.map(o=>{
-    const tm={realize:'tag-real',transfer:'tag-xfer',adjust:'tag-adj'};
-    const tl={realize:'Realizar',transfer:'Transfer',adjust:'Ajuste'};
+    const tm={realize:'tag-real',transfer:'tag-xfer',adjust:'tag-adj',ingreso:'tag-real'};
+    const tl={realize:'Realizar',transfer:'Transfer',adjust:'Ajuste',ingreso:'Ingreso'};
     const subLabel=o.dirLabel||'';
     const qty=o.qty!=null?((o.qty>=0?'+':'')+fAmt(o.qty)+' '+o.token):'—';
     return`<tr>
@@ -750,9 +806,18 @@ function openModal(type,wid){
   if(type==='realize'){
     const w=wid?wallets.find(x=>x.id===wid):null;
     const b=wid?balances[wid]||{}:{};
+    // Manual tokens from ingreso ops
+    const manualToks={};
+    for(const op of ops.filter(o=>o.type==='ingreso')) manualToks[op.token]=(manualToks[op.token]||0)+op.qty;
+    for(const op of ops.filter(o=>o.type==='realize'&&o.isManual&&o.qty<0)){
+      if(op.token) manualToks[op.token]=(manualToks[op.token]||0)+op.qty;
+    }
+    const manualOpts=Object.entries(manualToks)
+      .filter(([,v])=>v>0.000001&&!NATIVES.includes(_=>false))
+      .map(([tk,v])=>`<option value="${tk}" data-manual="1">${tk} (${fAmt(v,4)} manual)</option>`).join('');
     const tkOpts=wid
-      ?Object.keys(b).filter(k=>k!=='_error'&&!STABLES.includes(k)).map(k=>`<option value="${k}">${k} (${fAmt(b[k],4)} disponible)</option>`).join('')||NATIVES.map(t=>`<option value="${t}">${t}</option>`).join('')
-      :NATIVES.map(t=>`<option value="${t}">${t}</option>`).join('');
+      ?Object.keys(b).filter(k=>k!=='_error'&&k!=='_detail'&&!STABLES.includes(k)).map(k=>`<option value="${k}">${k} (${fAmt(b[k],4)} disponible)</option>`).join('')||NATIVES.map(t=>`<option value="${t}">${t}</option>`).join('')
+      :[...NATIVES.map(t=>`<option value="${t}">${t}</option>`),manualOpts].join('');
     box.innerHTML=`<h2>💰 Realizar Ganancia</h2>
       <p class="note">Convertís cripto a stables. Se registra como operación y <strong>no cuenta como pérdida</strong> — el sistema detecta el cambio comparando balances entre snapshots.</p>
       <div class="fg" style="margin-top:14px"><label class="flbl">Token vendido</label><select class="fsel" id="mRT" onchange="updRealUSD()">${tkOpts}</select></div>
@@ -804,6 +869,23 @@ function openModal(type,wid){
       </div>
       <div class="fg"><label class="flbl">Motivo / Notas</label><input class="finp" id="mXN" placeholder="ej: retiro a exchange, pago a proveedor, recibí de amigo..."></div>
       <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitTransfer()">Registrar</button></div>`;
+    return;
+  }
+
+  if(type==='ingreso'){
+    box.innerHTML=`<h2>💸 Agregar Ingreso Manual</h2>
+      <p class="note">Para registrar ganancias de chains o tokens que no trackeás con wallets (TОN, TRON, Arbitrum, una venta P2P, etc). <strong>No altera el P&L de tus wallets</strong>, se suma por separado en "Ingresos Manuales".</p>
+      <div class="frow" style="margin-top:14px">
+        <div class="fg"><label class="flbl">Token / Chain</label><input class="finp" id="mITok" placeholder="ej: TON, TRX, ARB, cualquier cosa"></div>
+        <div class="fg"><label class="flbl">Cantidad de tokens</label><input class="finp" id="mIQty" type="number" step="any" placeholder="ej: 150" oninput="updIngresoUSD()"></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="flbl">Precio unitario (USD)</label><input class="finp" id="mIPrecio" type="number" step="any" placeholder="ej: 3.50" oninput="updIngresoUSD()"></div>
+        <div class="fg"><label class="flbl">Total USD (calculado)</label><input class="finp" id="mIUSD" type="number" step="any" placeholder="0.00"></div>
+      </div>
+      <div class="fg"><label class="flbl">Descripción / Origen</label><input class="finp" id="mIDesc" placeholder="ej: farming TON, venta P2P, airdrop ARB..."></div>
+      <div class="fg"><label class="flbl">Fecha</label><input class="finp" id="mIFecha" type="date" value="${today()}"></div>
+      <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitIngreso()">Registrar</button></div>`;
     return;
   }
 
@@ -862,7 +944,14 @@ function submitRealize(wid){
   const note=document.getElementById('mRN').value.trim();
   if(!qty||qty<=0){alert('Ingresá una cantidad válida.');return;}
   const w=wid?wallets.find(x=>x.id===wid):null;
-  ops.push({id:uid(),type:'realize',date:today(),token:tok,qty:-qty,stable,usd,desc:note||(qty+' '+tok+' → '+stable),walletName:w?.name||short(w?.address||''),walletId:wid});
+  // Detect if token is a manual one (not in wallets)
+  const sel=document.getElementById('mRT');
+  const isManual=sel?.selectedOptions[0]?.dataset?.manual==='1'||
+    (!wid&&!NATIVES.includes(tok)&&!STABLES.includes(tok));
+  ops.push({id:uid(),type:'realize',date:today(),token:tok,qty:-qty,stable,usd,
+    desc:note||(fAmt(qty,4)+' '+tok+' → '+stable),
+    walletName:w?.name||short(w?.address||'')||'Manual',
+    walletId:wid,isManual});
   localStorage.setItem('ct_ops',JSON.stringify(ops));
   closeModal();renderSummary();renderOps();
   alert(`✓ Registrado: ${fAmt(qty,4)} ${tok} → ${fUSD(usd)} ${stable}`);
@@ -920,6 +1009,28 @@ function submitTransfer(){
   localStorage.setItem('ct_ops',JSON.stringify(ops));
   closeModal();renderOps();
   alert('✓ Movimiento registrado. No afecta el P&L.');
+}
+
+function updIngresoUSD(){
+  const qty=parseFloat(document.getElementById('mIQty')?.value||0);
+  const precio=parseFloat(document.getElementById('mIPrecio')?.value||0);
+  const usdEl=document.getElementById('mIUSD');
+  if(usdEl&&qty&&precio) usdEl.value=(qty*precio).toFixed(2);
+}
+
+function submitIngreso(){
+  const tok=document.getElementById('mITok').value.trim().toUpperCase();
+  const qty=parseFloat(document.getElementById('mIQty').value)||0;
+  const precio=parseFloat(document.getElementById('mIPrecio').value)||0;
+  const usd=parseFloat(document.getElementById('mIUSD').value)||(qty*precio);
+  const desc=document.getElementById('mIDesc').value.trim();
+  const fecha=document.getElementById('mIFecha').value||today();
+  if(!tok){alert('Ingresá el nombre del token.');return;}
+  if(!usd||usd<=0){alert('Ingresá un monto en USD.');return;}
+  ops.push({id:uid(),type:'ingreso',date:fecha,token:tok,qty,usd,desc:desc||(qty+' '+tok),walletName:'Manual'});
+  localStorage.setItem('ct_ops',JSON.stringify(ops));
+  closeModal();renderSummary();renderOps();
+  alert(`✓ Ingreso registrado: ${qty} ${tok} = ${fUSD(usd)}`);
 }
 
 function submitAdjust(){
