@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+:root{--bg:#09090f;--sur:#111118;--sur2:#1a1a26;--bdr:#252535;--acc:#00ff88;--acc2:#7c3aed;--red:#ff3a5c;--yel:#f59e0b;--txt:#e8e8f0;--mut:#5a5a7a;--mono:'Space Mono',monospace;--disp:'Syne',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:var(--disp);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,255,136,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
+.app{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:24px 18px}
+header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;flex-wrap:wrap;gap:14px}
+.logo{font-size:10px;font-family:var(--mono);color:var(--acc);letter-spacing:.2em;text-transform:uppercase;margin-bottom:3px}
+h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.hdr-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.upd{font-family:var(--mono);font-size:10px;color:var(--mut);display:flex;align-items:center;gap:5px;margin-top:5px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--mut)}
+.dot.live{background:var(--acc);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.btn{padding:9px 16px;border-radius:7px;border:none;cursor:pointer;font-family:var(--disp);font-size:13px;font-weight:700;transition:all .15s;white-space:nowrap}
+.btn-pri{background:var(--acc);color:#000}.btn-pri:hover{background:#00e077;transform:translateY(-1px)}
+.btn-gho{background:transparent;color:var(--mut);border:1px solid var(--bdr)}.btn-gho:hover{border-color:var(--acc);color:var(--acc)}
+.btn-red{background:transparent;color:var(--red);border:1px solid var(--red)44;font-size:12px;padding:6px 12px}.btn-red:hover{background:var(--red)22}
+.btn-pur{background:var(--acc2);color:#fff;font-size:12px;padding:7px 13px}.btn-pur:hover{background:#6d28d9}
+.btn-sm{font-size:12px;padding:7px 13px}
+.icon-btn{background:transparent;border:1px solid var(--bdr);color:var(--mut);border-radius:6px;padding:5px 9px;cursor:pointer;font-size:12px;transition:all .15s}
+.icon-btn.del:hover{border-color:var(--red);color:var(--red)}
+.prices-bar{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap}
+.pc{background:var(--sur);border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;flex:1;min-width:120px}
+.pc .sym{font-size:10px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em;min-width:36px}
+.pc .prc{font-family:var(--mono);font-size:13px;font-weight:700}
+.pc .chg{font-family:var(--mono);font-size:10px;margin-left:auto}
+.pos{color:var(--acc)}.neg{color:var(--red)}
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:24px}
+.card{background:var(--sur);border:1px solid var(--bdr);border-radius:12px;padding:18px 20px;transition:border-color .2s}
+.card:hover{border-color:var(--acc2)44}
+.clbl{font-size:10px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.15em;margin-bottom:7px}
+.cval{font-size:24px;font-weight:800;font-family:var(--mono);letter-spacing:-.02em}
+.csub{font-size:10px;color:var(--mut);margin-top:3px;font-family:var(--mono)}
+.tabs{display:flex;gap:3px;margin-bottom:18px;background:var(--sur);border:1px solid var(--bdr);border-radius:10px;padding:3px;width:fit-content;flex-wrap:wrap}
+.tab{padding:7px 16px;border-radius:7px;border:none;background:transparent;color:var(--mut);cursor:pointer;font-family:var(--disp);font-size:13px;font-weight:700;transition:all .15s}
+.tab.active{background:var(--acc);color:#000}
+.wlist{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+.wcard{background:var(--sur);border:1px solid var(--bdr);border-radius:12px;padding:16px 18px;transition:border-color .2s}
+.wcard.loading{opacity:.55}
+.wtop{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.cbadge{font-size:10px;font-family:var(--mono);padding:3px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.ceth{background:#3c4d8a22;color:#7c9cff;border:1px solid #3c4d8a55}
+.cbsc{background:#f0b90b22;color:#f0b90b;border:1px solid #f0b90b55}
+.csol{background:#9945ff22;color:#c67aff;border:1px solid #9945ff55}
+.cbase{background:#0052ff22;color:#4d8bff;border:1px solid #0052ff55}
+.cavax{background:#e8414222;color:#ff7070;border:1px solid #e8414255}
+.cmatic{background:#8247e522;color:#a97aff;border:1px solid #8247e555}
+.wname{font-size:14px;font-weight:700}
+.waddr{font-family:var(--mono);font-size:10px;color:var(--mut)}
+.wbody{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
+.tklist{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.tkitem{min-width:90px}
+.tklbl{font-size:9px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em}
+.tkamt{font-family:var(--mono);font-size:15px;font-weight:700}
+.tkchg{font-family:var(--mono);font-size:10px;margin-top:1px}
+.tkusd{font-family:var(--mono);font-size:10px;color:var(--mut)}
+.wright{text-align:right;min-width:110px}
+.wtlbl{font-size:9px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px}
+.wtval{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--acc)}
+.wacts{display:flex;gap:5px;margin-top:8px;justify-content:flex-end;flex-wrap:wrap}
+.errtxt{font-family:var(--mono);font-size:11px;color:var(--red)}
+.ldtxt{font-family:var(--mono);font-size:11px;color:var(--mut);animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.snapbar{background:var(--sur2);border:1px solid var(--acc)33;border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.snaptxt{font-size:13px}.snaptxt span{color:var(--acc);font-weight:700;font-family:var(--mono)}
+.tbl-wrap{background:var(--sur);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+th{text-align:left;padding:10px 14px;color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.12em;border-bottom:1px solid var(--bdr)}
+td{padding:11px 14px;border-bottom:1px solid var(--bdr)44}
+tr:hover td{background:var(--sur2)}
+tr:last-child td{border-bottom:none}
+.mongrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:10px}
+.moncard{background:var(--sur);border:1px solid var(--bdr);border-radius:10px;padding:15px}
+.monname{font-size:10px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+.monval{font-family:var(--mono);font-size:17px;font-weight:700}
+.monsub{font-size:10px;color:var(--mut);font-family:var(--mono);margin-top:3px}
+.chart-wrap{background:var(--sur);border:1px solid var(--bdr);border-radius:12px;padding:20px;margin-bottom:16px}
+.chart-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.chart-title{font-size:14px;font-weight:700}
+.chart-tabs{display:flex;gap:4px}
+.ctab{padding:5px 12px;border-radius:6px;border:1px solid var(--bdr);background:transparent;color:var(--mut);cursor:pointer;font-family:var(--disp);font-size:11px;font-weight:600;transition:all .15s}
+.ctab.active{background:var(--acc2);color:#fff;border-color:var(--acc2)}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--sur);border:1px solid var(--bdr);border-radius:16px;padding:26px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:17px;font-weight:800;margin-bottom:18px}
+.fg{margin-bottom:14px}
+.flbl{display:block;font-size:10px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.12em;margin-bottom:5px}
+.finp,.fsel{width:100%;background:var(--sur2);border:1px solid var(--bdr);border-radius:8px;padding:9px 13px;color:var(--txt);font-family:var(--mono);font-size:13px;outline:none;transition:border-color .15s}
+.finp:focus,.fsel:focus{border-color:var(--acc)}
+.fsel option{background:var(--sur)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.macts{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+.note{font-size:11px;color:var(--mut);font-family:var(--mono);margin-top:6px;line-height:1.6;background:var(--sur2);border:1px solid var(--bdr);border-radius:6px;padding:10px 12px}
+.tag{display:inline-block;font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.tag-real{background:var(--acc)22;color:var(--acc);border:1px solid var(--acc)44}
+.tag-xfer{background:var(--acc2)22;color:#a78bfa;border:1px solid var(--acc2)44}
+.tag-adj{background:var(--yel)22;color:var(--yel);border:1px solid var(--yel)44}
+.sechdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.sectit{font-size:15px;font-weight:700}
+.empty{text-align:center;padding:50px 20px;color:var(--mut)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-txt{font-size:13px;margin-bottom:6px}
+.empty-sub{font-size:11px;font-family:var(--mono)}
+@media(max-width:640px){.sumgrid{grid-template-columns:1fr 1fr}.wbody{grid-template-columns:1fr}.wright{text-align:left}h1{font-size:22px}.frow{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div>
+    <div class="logo">◈ Crypto Tracker</div>
+    <h1>Wallet Dashboard</h1>
+    <div class="upd"><span class="dot" id="statusDot"></span><span id="lastUpd">Sin actualizar</span></div>
+  </div>
+  <div class="hdr-right">
+    <button class="btn btn-gho" onclick="importData()" title="Importar backup">📥 Importar</button>
+    <button class="btn btn-gho" onclick="exportData()" title="Exportar backup">📤 Exportar</button>
+    <button class="btn btn-gho" onclick="openModal('transfer')">⇄ Transfer</button>
+    <button class="btn btn-gho" onclick="openAddWallet()">+ Wallet</button>
+    <button class="btn btn-pri" onclick="refreshAll()">↻ Actualizar</button>
+  </div>
+</header>
+
+<div class="prices-bar" id="pricesBar">
+  <div class="pc"><span class="sym">ETH</span><span class="prc ldtxt">…</span></div>
+  <div class="pc"><span class="sym">SOL</span><span class="prc ldtxt">…</span></div>
+  <div class="pc"><span class="sym">BNB</span><span class="prc ldtxt">…</span></div>
+  <div class="pc"><span class="sym">AVAX</span><span class="prc ldtxt">…</span></div>
+  <div class="pc"><span class="sym">MATIC</span><span class="prc ldtxt">…</span></div>
+</div>
+
+<div class="sumgrid">
+  <div class="card"><div class="clbl">Total Portfolio</div><div class="cval" id="totUSD">$0.00</div><div class="csub" id="totSub">—</div></div>
+  <div class="card">
+    <div class="clbl">P&L Hoy</div>
+    <div class="cval" id="pnlDayUSD">—</div>
+    <div class="csub" id="pnlDaySub">—</div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr)">
+      <div class="clbl" style="margin-bottom:4px">En Tokens</div>
+      <div id="pnlDayCrypto" style="font-size:12px;font-family:var(--mono);line-height:1.8;color:var(--txt)">—</div>
+      <div class="csub" id="pnlDayCryptoSub" style="margin-top:2px">vs snapshot anterior</div>
+    </div>
+  </div>
+  <div class="card"><div class="clbl">P&L Este Mes</div><div class="cval" id="pnlMon">—</div><div class="csub" id="pnlMonSub">—</div></div>
+  <div class="card"><div class="clbl">P&L Este Año</div><div class="cval" id="pnlYr">—</div><div class="csub" id="pnlYrSub">—</div></div>
+  <div class="card"><div class="clbl">Ganancias Realizadas</div><div class="cval pos" id="realized">$0.00</div><div class="csub" id="realizedSub">0 operaciones</div></div>
+  <div class="card" style="border-color:var(--acc2)33">
+    <div class="clbl">Tokens Externos</div>
+    <div id="ingresoMan" style="font-size:12px;font-family:var(--mono);line-height:1.9;margin-bottom:6px;color:var(--txt)">—</div>
+    <div class="csub" id="ingresoManSub">TON, TRX, ARB, etc</div>
+    <button class="btn btn-gho" style="margin-top:10px;width:100%;font-size:11px;padding:6px" onclick="openModal('ingreso')">+ Agregar Ingreso</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" id="tab-wallets" onclick="showTab('wallets')">Wallets</button>
+  <button class="tab" id="tab-grafico" onclick="showTab('grafico')">Gráfico</button>
+  <button class="tab" id="tab-historial" onclick="showTab('historial')">Historial</button>
+  <button class="tab" id="tab-mensual" onclick="showTab('mensual')">Mensual</button>
+  <button class="tab" id="tab-ops" onclick="showTab('ops')">Operaciones</button>
+</div>
+
+<!-- WALLETS -->
+<div id="panel-wallets">
+  <div class="snapbar" id="snapbar" style="display:none">
+    <div class="snaptxt">📸 Snapshot de hoy: <span id="snapTotal">$0</span></div>
+    <button class="btn btn-pri btn-sm" onclick="saveSnapshot()">Guardar Snapshot Diario</button>
+  </div>
+  <div class="sechdr">
+    <span class="sectit">Mis Wallets</span>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--mut)" id="wcount">0 wallets</span>
+  </div>
+  <div class="wlist" id="walletList">
+    <div class="empty"><div class="empty-icon">👛</div><div class="empty-txt">No hay wallets</div><div class="empty-sub">Clic en "+ Wallet" para agregar</div></div>
+  </div>
+</div>
+
+<!-- GRAFICO -->
+<div id="panel-grafico" style="display:none">
+  <div class="chart-wrap">
+    <div class="chart-hdr">
+      <span class="chart-title">Evolución del Portfolio (USD)</span>
+      <div class="chart-tabs">
+        <button class="ctab active" onclick="setChartMode('total',this)">Total</button>
+        <button class="ctab" onclick="setChartMode('pnl',this)">P&L Diario</button>
+      </div>
+    </div>
+    <canvas id="portfolioChart" height="280"></canvas>
+  </div>
+  <div class="chart-wrap">
+    <div class="chart-hdr"><span class="chart-title">Distribución por Token (actual)</span></div>
+    <canvas id="distChart" height="200"></canvas>
+  </div>
+</div>
+
+<!-- HISTORIAL -->
+<div id="panel-historial" style="display:none">
+  <div class="sechdr">
+    <span class="sectit">Historial de Snapshots</span>
+    <button class="btn btn-red btn-sm" onclick="clearHistory()">Limpiar</button>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Total USD</th><th>P&L USD</th><th>P&L %</th><th>SOL</th><th>ETH</th><th>BNB</th><th>AVAX</th><th>MATIC</th><th>Stables USD</th></tr></thead>
+      <tbody id="histBody"><tr><td colspan="10" style="text-align:center;padding:36px;color:var(--mut)">Sin historial aún</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MENSUAL -->
+<div id="panel-mensual" style="display:none">
+  <div class="sechdr"><span class="sectit">Resumen Mensual <span style="color:var(--mut);font-weight:400;font-size:13px" id="yearLbl"></span></span></div>
+  <div class="mongrid" id="monGrid"><div style="color:var(--mut);font-family:var(--mono);font-size:12px;padding:36px">Sin datos aún</div></div>
+</div>
+
+<!-- OPERACIONES -->
+<div id="panel-ops" style="display:none">
+  <div class="sechdr">
+    <span class="sectit">Operaciones</span>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-gho btn-sm" onclick="openModal('realize')">💰 Realizar Ganancia</button>
+      <button class="btn btn-gho btn-sm" onclick="openModal('ingreso')">💸 Ingreso Manual</button>
+      <button class="btn btn-gho btn-sm" onclick="openModal('adjust')">✏️ Ajuste Manual</button>
+      <button class="btn btn-gho btn-sm" onclick="openModal('transfer')">⇄ Transfer</button>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Token</th><th>Cantidad</th><th>USD</th><th>Wallet</th></tr></thead>
+      <tbody id="opsBody"><tr><td colspan="7" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<div class="ov" id="modalOv" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<script>
+// STATE
+let wallets=JSON.parse(localStorage.getItem('ct_wallets')||'[]');
+let snapshots=JSON.parse(localStorage.getItem('ct_snaps')||'[]');
+let ops=JSON.parse(localStorage.getItem('ct_ops')||'[]');
+let prices={};
+let balances={};
+let chartMode='total';
+let portfolioChart=null,distChart=null;
+
+// ── EXPORT / IMPORT (backup to file) ──
+function exportData(){
+  const data={wallets,snapshots,ops,exportedAt:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='crypto-tracker-backup-'+today()+'.json';
+  a.click();
+}
+function importData(){
+  const input=document.createElement('input');
+  input.type='file';input.accept='.json';
+  input.onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        if(!data.wallets||!data.snapshots){alert('Archivo inválido.');return;}
+        if(!confirm('¿Importar datos? Esto reemplazará los datos actuales.'))return;
+        wallets=data.wallets;snapshots=data.snapshots;ops=data.ops||[];
+        localStorage.setItem('ct_wallets',JSON.stringify(wallets));
+        localStorage.setItem('ct_snaps',JSON.stringify(snapshots));
+        localStorage.setItem('ct_ops',JSON.stringify(ops));
+        alert('✓ Datos importados correctamente.');
+        location.reload();
+      }catch(e){alert('Error al leer el archivo: '+e.message);}
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// CHAINS
+const CHAINS={
+  eth:{name:'Ethereum',sym:'ETH',id:'ethereum',cls:'ceth',evm:true},
+  bsc:{name:'BNB Chain',sym:'BNB',id:'binancecoin',cls:'cbsc',evm:true},
+  base:{name:'Base',sym:'ETH',id:'ethereum',cls:'cbase',evm:true},
+  avax:{name:'Avalanche',sym:'AVAX',id:'avalanche-2',cls:'cavax',evm:true},
+  matic:{name:'Polygon',sym:'MATIC',id:'matic-network',cls:'cmatic',evm:true},
+  sol:{name:'Solana',sym:'SOL',id:'solana',cls:'csol',evm:false},
+};
+const STABLES=['USDT','USDC','USD1','DAI','BUSD'];
+// Chain accent colors for token badges
+const CHAIN_COLORS={
+  eth:  {bg:'#3c4d8a33',color:'#7c9cff',label:'ETH'},
+  bsc:  {bg:'#f0b90b22',color:'#f0b90b',label:'BNB'},
+  base: {bg:'#1a6bff22',color:'#60a5fa',label:'BASE'},
+  avax: {bg:'#e8414222',color:'#ff7070',label:'AVAX'},
+  matic:{bg:'#8247e522',color:'#c084fc',label:'MATIC'},
+  sol:  {bg:'#9945ff22',color:'#c67aff',label:'SOL'},
+};
+const NATIVES=['ETH','SOL','BNB','AVAX','MATIC'];
+const ALL_TOKENS=[...NATIVES,...STABLES];
+const STABLE_CONTRACTS={
+  eth:{USDT:'0xdAC17F958D2ee523a2206206994597C13D831ec7',USDC:'0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'},
+  bsc:{USDT:'0x55d398326f99059fF775485246999027B3197955',USDC:'0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',USD1:'0x8d0D000Ee44948FC98c9B98a4FA4921476f5e4c5'},
+  base:{USDC:'0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'},
+  avax:{USDT:'0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7',USDC:'0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E'},
+  matic:{USDT:'0xc2132D05D31c914a87C6611C10748AEb04B58e8F',USDC:'0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'},
+};
+const STABLE_DEC={eth:{USDT:6,USDC:6},bsc:{USDT:18,USDC:18,USD1:18},base:{USDC:6},avax:{USDT:6,USDC:6},matic:{USDT:6,USDC:6}};
+const RPCS={
+  eth:  ['https://ethereum.publicnode.com','https://rpc.ankr.com/eth','https://eth.llamarpc.com'],
+  bsc:  ['https://bsc-dataseed.binance.org','https://bsc-dataseed1.defibit.io','https://rpc.ankr.com/bsc'],
+  base: ['https://mainnet.base.org','https://base.llamarpc.com','https://rpc.ankr.com/base'],
+  avax: ['https://api.avax.network/ext/bc/C/rpc','https://rpc.ankr.com/avalanche','https://avax.llamarpc.com'],
+  matic:['https://polygon.llamarpc.com','https://rpc.ankr.com/polygon','https://polygon-bor-rpc.publicnode.com'],
+};
+
+// UTILS
+const fUSD=v=>v==null?'—':'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fAmt=(v,d=4)=>v==null?'—':parseFloat(v).toFixed(d);
+const fPct=v=>v==null?'—':(v>=0?'+':'')+v.toFixed(2)+'%';
+const fSign=v=>v==null?'—':(v>=0?'+':'')+fUSD(Math.abs(v));
+const today=()=>new Date().toISOString().slice(0,10);
+const short=a=>a?a.slice(0,6)+'…'+a.slice(-4):'';
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const tokPrice=t=>STABLES.includes(t)?1:(prices[t]||0);
+
+// PRICES
+async function fetchPrices(){
+  try{
+    const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana,binancecoin,avalanche-2,matic-network&vs_currencies=usd&include_24hr_change=true');
+    const d=await r.json();
+    prices={ETH:d.ethereum?.usd,SOL:d.solana?.usd,BNB:d.binancecoin?.usd,AVAX:d['avalanche-2']?.usd,MATIC:d['matic-network']?.usd,USDT:1,USDC:1,USD1:1,DAI:1,BUSD:1};
+    const tkns=[{id:'ethereum',s:'ETH'},{id:'solana',s:'SOL'},{id:'binancecoin',s:'BNB'},{id:'avalanche-2',s:'AVAX'},{id:'matic-network',s:'MATIC'}];
+    document.getElementById('pricesBar').innerHTML=tkns.map(t=>{
+      const x=d[t.id];if(!x)return'';
+      const c=(x.usd_24h_change||0).toFixed(2);const pos=c>=0;
+      return`<div class="pc"><span class="sym">${t.s}</span><span class="prc">${fUSD(x.usd)}</span><span class="chg ${pos?'pos':'neg'}">${pos?'+':''}${c}%</span></div>`;
+    }).join('');
+  }catch(e){console.warn('Price error',e)}
+}
+
+// BALANCES
+async function evmPost(chain, body){
+  const rpcs = RPCS[chain] || [];
+  for(const rpc of rpcs){
+    try{
+      const r = await fetch(rpc, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+      if(!r.ok) continue;
+      const j = await r.json();
+      if(j?.result !== undefined && !j?.error) return j.result;
+    } catch(e){ continue; }
+  }
+  return null;
+}
+
+async function fetchEVM(addr,chain){
+  const res={};
+  if(!RPCS[chain]) return res;
+  try{
+    const bal = await evmPost(chain, {jsonrpc:'2.0',method:'eth_getBalance',params:[addr,'latest'],id:1});
+    if(bal) res[CHAINS[chain].sym] = parseInt(bal,16)/1e18;
+  }catch(e){}
+  for(const[tk,ca]of Object.entries(STABLE_CONTRACTS[chain]||{})){
+    try{
+      const data='0x70a08231'+addr.slice(2).padStart(64,'0');
+      const result = await evmPost(chain, {jsonrpc:'2.0',method:'eth_call',params:[{to:ca,data},'latest'],id:1});
+      if(result && result!=='0x'){
+        const dec=(STABLE_DEC[chain]||{})[tk]||6;
+        const amt=parseInt(result,16)/Math.pow(10,dec);
+        if(amt>0.000001) res[tk]=amt;
+      }
+    }catch(e){}
+  }
+  return res;
+}
+
+// Solana: multi-endpoint with CORS support for file:// origins
+const SOL_ENDPOINTS = [
+  // These endpoints work from https:// origins without API key
+  'https://solana-rpc.publicnode.com',
+  'https://rpc.ankr.com/solana',
+  'https://api.mainnet-beta.solana.com',
+];
+// Stablecoin mint addresses on Solana
+const SOL_MINTS = {
+  USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+};
+
+async function solPost(method, params){
+  for(const url of SOL_ENDPOINTS){
+    try{
+      const r = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({jsonrpc:'2.0', id:Math.floor(Math.random()*9999), method, params})
+      });
+      if(!r.ok){ console.warn('SOL RPC',url,'status',r.status); continue; }
+      const j = await r.json();
+      if(j?.error){ console.warn('SOL RPC error',j.error); continue; }
+      if(j?.result !== undefined) return j.result;
+    } catch(e){ console.warn('SOL fetch failed',url,e.message); continue; }
+  }
+  console.error('All Solana RPCs failed');
+  return null;
+}
+
+async function fetchSOL(addr){
+  const res = {};
+  try{
+    // Get native SOL balance
+    const bal = await solPost('getBalance', [addr]);
+    if(bal?.value != null) res.SOL = bal.value / 1e9;
+    else if(typeof bal === 'number') res.SOL = bal / 1e9;
+  } catch(e){}
+
+  try{
+    // Get all token accounts at once (more efficient)
+    const toks = await solPost('getTokenAccountsByOwner', [
+      addr,
+      {programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'},
+      {encoding: 'jsonParsed'}
+    ]);
+    const accounts = toks?.value || [];
+    for(const acc of accounts){
+      const info = acc?.account?.data?.parsed?.info;
+      const mint = info?.mint;
+      const amt = info?.tokenAmount?.uiAmount;
+      if(!mint || !amt || amt <= 0) continue;
+      const sym = Object.entries(SOL_MINTS).find(([,m]) => m === mint)?.[0];
+      if(sym) res[sym] = (res[sym] || 0) + amt;
+    }
+  } catch(e){}
+
+  return res;
+}
+
+async function fetchWallet(w){
+  const el=document.getElementById('wc-'+w.id);
+  if(el)el.classList.add('loading');
+  try{
+    const chains=w.chains||(w.chain?[w.chain]:[]);
+    const combined={};   // {TOKEN: total_amount}
+    const detail=[];     // [{chain, token, amount}] for display
+    for(const chain of chains){
+      const res=chain==='sol'?await fetchSOL(w.address):await fetchEVM(w.address,chain);
+      for(const[tk,amt]of Object.entries(res)){
+        if(amt>0.000001){
+          combined[tk]=(combined[tk]||0)+amt;
+          detail.push({chain,token:tk,amount:amt});
+        }
+      }
+    }
+    combined._detail=detail;
+    balances[w.id]=combined;
+  }catch(e){balances[w.id]={_error:true};}
+  if(el)el.classList.remove('loading');
+}
+
+// AGGREGATION
+function aggregateTokens(){
+  const t={};
+  // Wallet balances
+  for(const w of wallets){
+    const b=balances[w.id]||{};
+    for(const[tk,amt]of Object.entries(b)){
+      if(tk==='_error'||tk==='_detail')continue;
+      t[tk]=(t[tk]||0)+amt;
+    }
+  }
+  // Add manual ingresos (positive) and realized manual gains (negative when sold)
+  // Net per token from ingreso ops
+  for(const op of ops){
+    if(op.type==='ingreso'&&op.token&&op.qty>0){
+      t[op.token]=(t[op.token]||0)+op.qty;
+    }
+    // If a realize op references a manual token (non-wallet), subtract it
+    if(op.type==='realize'&&op.token&&op.qty<0&&op.isManual){
+      t[op.token]=(t[op.token]||0)+op.qty; // qty is already negative
+    }
+  }
+  return t;
+}
+
+function calcUSD(toks){
+  let t=0;for(const[tk,amt]of Object.entries(toks||{}))t+=amt*tokPrice(tk);return t;
+}
+
+function walletUSD(wid){
+  const b=balances[wid]||{};let t=0;
+  for(const[tk,amt]of Object.entries(b)){if(tk==='_error'||tk==='_detail')continue;t+=amt*tokPrice(tk);}
+  return t;
+}
+
+function tokenDiff(prevToks,curToks){
+  const diff={};
+  const keys=new Set([...Object.keys(prevToks||{}),...Object.keys(curToks)]);
+  for(const tk of keys){const d=(curToks[tk]||0)-(prevToks?.[tk]||0);if(Math.abs(d)>0.000001)diff[tk]=d;}
+  return diff;
+}
+
+// RENDER WALLETS
+function renderWallets(){
+  const list=document.getElementById('walletList');
+  document.getElementById('wcount').textContent=wallets.length+' wallet'+(wallets.length!==1?'s':'');
+  if(!wallets.length){
+    list.innerHTML=`<div class="empty"><div class="empty-icon">👛</div><div class="empty-txt">No hay wallets</div><div class="empty-sub">Clic en "+ Wallet" para agregar</div></div>`;
+    return;
+  }
+  const toks=aggregateTokens();const tot=calcUSD(toks);
+  const sb=document.getElementById('snapbar');
+  if(tot>0){sb.style.display='flex';document.getElementById('snapTotal').textContent=fUSD(tot);}
+  else sb.style.display='none';
+
+  // Prev snap for diff per wallet
+  const todayStr=today();
+  const prev=snapshots.filter(s=>s.date<todayStr).sort((a,b)=>b.date.localeCompare(a.date))[0]||null;
+
+  list.innerHTML=wallets.map(w=>{
+    const chains=w.chains||(w.chain?[w.chain]:[]);
+    const b=balances[w.id];const wusd=walletUSD(w.id);
+    let bHTML='';
+    if(!b){bHTML='<span class="ldtxt">Cargando...</span>';}
+    else if(b._error){bHTML='<span class="errtxt">Error al obtener balance</span>';}
+    else{
+      const entries=Object.entries(b).filter(([k])=>k!=='_error'&&k!=='_detail');
+      {
+        // Build one row PER CHAIN per token (not merged), sorted by USD desc
+        const detail = (b._detail||[]).filter(d=>d.amount>0.000001);
+        if(!detail.length){
+          bHTML='<span style="color:var(--mut);font-size:11px;font-family:var(--mono)">Sin balance</span>';
+        } else {
+          // Sort by USD value descending
+          const sortedDetail = [...detail].sort((a,b)=>{
+            const usdA=a.amount*tokPrice(a.token);
+            const usdB=b.amount*tokPrice(b.token);
+            return usdB-usdA;
+          });
+          bHTML = sortedDetail.map(d=>{
+            const cc = CHAIN_COLORS[d.chain]||{bg:'#ffffff11',color:'#aaa',label:d.chain.toUpperCase()};
+            const usd = d.amount * tokPrice(d.token);
+            const chainBadge = `<span style="font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:3px;background:${cc.bg};color:${cc.color};border:1px solid ${cc.color}55;letter-spacing:.05em;vertical-align:middle">${cc.label}</span>`;
+            return`<div class="tkitem">
+              <div class="tklbl" style="display:flex;align-items:center;gap:5px;margin-bottom:3px">${chainBadge} <span>${d.token}</span></div>
+              <div class="tkamt">${fAmt(d.amount,4)}</div>
+              <div class="tkusd">${fUSD(usd)}</div>
+            </div>`;
+          }).join('');
+        }
+      }
+    }
+    return`<div class="wcard" id="wc-${w.id}">
+      <div class="wtop">
+        ${chains.map(c=>CHAINS[c]?`<span class="cbadge c${c}">${CHAINS[c].name}</span>`:'' ).join('')}
+        <span class="wname">${w.name||short(w.address)}</span>
+        <span class="waddr">${short(w.address)}</span>
+      </div>
+      <div class="wbody">
+        <div class="tklist">${bHTML}</div>
+        <div class="wright">
+          <div class="wtlbl">Total</div>
+          <div class="wtval">${fUSD(wusd)}</div>
+          <div class="wacts">
+            <button class="btn btn-pur btn-sm" onclick="openModal('realize','${w.id}')">💰 Realizar</button>
+            <button class="icon-btn del" onclick="removeWallet('${w.id}')">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// RENDER SUMMARY
+function renderSummary(){
+  const toks=aggregateTokens();const tot=calcUSD(toks);
+  document.getElementById('totUSD').textContent=fUSD(tot);
+  document.getElementById('totSub').textContent=wallets.length+' wallets · '+Object.keys(toks).length+' tokens';
+
+  const todayStr=today();
+  const sorted=snapshots.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const prev=sorted.find(s=>s.date<todayStr)||null;
+
+  // Daily USD
+  const pnlDEl=document.getElementById('pnlDayUSD');
+  const pnlDSub=document.getElementById('pnlDaySub');
+  if(prev){
+    const d=tot-prev.total;const pct=prev.total?d/prev.total*100:null;
+    pnlDEl.textContent=fSign(d);pnlDEl.className='cval '+(d>=0?'pos':'neg');
+    pnlDSub.textContent=(pct?fPct(pct)+' · ':'')+`vs ${prev.date}`;
+  }else{pnlDEl.textContent='—';pnlDEl.className='cval';pnlDSub.textContent='Guardá un snapshot';}
+
+  // Daily CRYPTO diff — show tokens gained/lost with USD equivalent
+  const cEl=document.getElementById('pnlDayCrypto');
+  const cSub=document.getElementById('pnlDayCryptoSub');
+  if(prev?.tokens){
+    const diff=tokenDiff(prev.tokens,toks);
+    const entries=Object.entries(diff).filter(([tk,v])=>Math.abs(v)>0.000001&&Math.abs(v*tokPrice(tk))>=5);
+    if(entries.length){
+      cEl.innerHTML=entries.map(([tk,v])=>{
+        const usdVal=v*tokPrice(tk);
+        const usdStr=usdVal!==0?` <span style="color:var(--mut);font-size:10px">(${usdVal>=0?'+':''}${fUSD(Math.abs(usdVal))})</span>`:'';
+        return`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>${usdStr}`;
+      }).join('<br>');
+      cSub.textContent='vs snapshot '+prev.date;
+    }else{cEl.innerHTML='<span style="color:var(--mut)">Sin cambios</span>';cSub.textContent='vs '+prev.date;}
+  }else{cEl.innerHTML='—';cSub.textContent='Guardá un snapshot';}
+
+  // Tokens externos (ingresos manuales) — show per token net balance
+  const ingrOps=ops.filter(o=>o.type==='ingreso');
+  const ingrEl=document.getElementById('ingresoMan');
+  const ingrSub=document.getElementById('ingresoManSub');
+  if(!ingrOps.length){
+    ingrEl.innerHTML='<span style="color:var(--mut)">Sin registros</span>';
+    ingrSub.textContent='TON, TRX, ARB, etc';
+  } else {
+    // Net per token
+    const netToks={};
+    for(const op of ingrOps) netToks[op.token]=(netToks[op.token]||0)+op.qty;
+    // Subtract realized manual
+    for(const op of ops.filter(o=>o.type==='realize'&&o.isManual)){
+      if(op.token) netToks[op.token]=(netToks[op.token]||0)+op.qty; // qty negative
+    }
+    ingrEl.innerHTML=Object.entries(netToks)
+      .filter(([,v])=>Math.abs(v)>0.000001)
+      .map(([tk,v])=>{
+        const usd=v*tokPrice(tk);
+        const usdStr=usd?` <span style="color:var(--mut);font-size:10px">${fUSD(usd)}</span>`:'';
+        return`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>${usdStr}`;
+      }).join('<br>')||'<span style="color:var(--mut)">Sin saldo</span>';
+    ingrSub.textContent=ingrOps.length+' ingreso'+(ingrOps.length!==1?'s':'');
+  }
+
+  // Monthly
+  const nowD=new Date();
+  const mStart=nowD.getFullYear()+'-'+String(nowD.getMonth()+1).padStart(2,'0')+'-01';
+  const mSnaps=snapshots.filter(s=>s.date>=mStart).sort((a,b)=>a.date.localeCompare(b.date));
+  const pnlMEl=document.getElementById('pnlMon');
+  const pnlMCEl=document.getElementById('pnlMonCrypto');
+  const pnlMCSub=document.getElementById('pnlMonCryptoSub');
+  if(mSnaps.length){
+    const firstM=mSnaps[0];
+    const dM=tot-firstM.total;
+    pnlMEl.textContent=fSign(dM);pnlMEl.className='cval '+(dM>=0?'pos':'neg');
+    document.getElementById('pnlMonSub').textContent='desde '+firstM.date;
+    if(firstM.tokens && pnlMCEl){
+      const mdiff=tokenDiff(firstM.tokens,toks);
+      const mentries=Object.entries(mdiff)
+        .filter(([tk,v])=>Math.abs(v)>0.000001&&Math.abs(v*tokPrice(tk))>=5)
+        .sort((a,b)=>Math.abs(b[1]*tokPrice(b[0]))-Math.abs(a[1]*tokPrice(a[0])));
+      if(mentries.length){
+        pnlMCEl.innerHTML=mentries.map(([tk,v])=>{
+          const usdVal=v*tokPrice(tk);
+          const usdStr=` <span style="color:var(--mut);font-size:10px">(${usdVal>=0?'+':''}${fUSD(Math.abs(usdVal))})</span>`;
+          return`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>${usdStr}`;
+        }).join('<br>');
+        pnlMCSub.textContent='vs '+firstM.date+' · >$5 USD';
+      } else {
+        pnlMCEl.innerHTML='<span style="color:var(--mut)">Sin cambios significativos</span>';
+        pnlMCSub.textContent='vs '+firstM.date;
+      }
+    }
+  } else {
+    pnlMEl.textContent='—';pnlMEl.className='cval';
+    document.getElementById('pnlMonSub').textContent='sin snapshots este mes';
+    if(pnlMCEl){pnlMCEl.innerHTML='—';pnlMCSub.textContent='guardá un snapshot';}
+  }
+
+  // Annual
+  const yStart=nowD.getFullYear()+'-01-01';
+  const ySnaps=snapshots.filter(s=>s.date>=yStart).sort((a,b)=>a.date.localeCompare(b.date));
+  const pnlYEl=document.getElementById('pnlYr');
+  if(ySnaps.length){const d=tot-ySnaps[0].total;pnlYEl.textContent=fSign(d);pnlYEl.className='cval '+(d>=0?'pos':'neg');document.getElementById('pnlYrSub').textContent='desde '+yStart;}
+  else{pnlYEl.textContent='—';pnlYEl.className='cval';document.getElementById('pnlYrSub').textContent='sin snapshots este año';}
+
+  // Realized
+  const realOps=ops.filter(o=>o.type==='realize');
+  const realTot=realOps.reduce((s,o)=>s+(o.usd||0),0);
+  document.getElementById('realized').textContent=fUSD(realTot);
+  document.getElementById('realizedSub').textContent=realOps.length+' operaciones';
+}
+
+// RENDER HISTORY
+function renderHistory(){
+  const tbody=document.getElementById('histBody');
+  if(!snapshots.length){tbody.innerHTML='<tr><td colspan="10" style="text-align:center;padding:36px;color:var(--mut)">Sin historial aún</td></tr>';return;}
+  const s=[...snapshots].sort((a,b)=>b.date.localeCompare(a.date));
+  tbody.innerHTML=s.map((snap,i)=>{
+    const prev=s[i+1];const pnl=prev?snap.total-prev.total:null;const pct=prev&&prev.total?pnl/prev.total*100:null;const pos=pnl>=0;
+    const t=snap.tokens||{};const stables=STABLES.reduce((a,tk)=>a+(t[tk]||0),0);
+    return`<tr>
+      <td>${snap.date}</td><td>${fUSD(snap.total)}</td>
+      <td class="${pnl==null?'':pos?'pos':'neg'}">${pnl==null?'—':fSign(pnl)}</td>
+      <td class="${pct==null?'':pos?'pos':'neg'}">${pct==null?'—':fPct(pct)}</td>
+      <td>${t.SOL?fAmt(t.SOL):'—'}</td><td>${t.ETH?fAmt(t.ETH):'—'}</td>
+      <td>${t.BNB?fAmt(t.BNB):'—'}</td><td>${t.AVAX?fAmt(t.AVAX):'—'}</td>
+      <td>${t.MATIC?fAmt(t.MATIC):'—'}</td><td>${stables>0?fUSD(stables):'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// RENDER MONTHLY
+function renderMonthly(){
+  const yr=new Date().getFullYear();document.getElementById('yearLbl').textContent=yr;
+  const months=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const grid=document.getElementById('monGrid');
+  const data=months.map((name,mi)=>{
+    const ms=yr+'-'+String(mi+1).padStart(2,'0');
+    const snps=snapshots.filter(s=>s.date.startsWith(ms)).sort((a,b)=>a.date.localeCompare(b.date));
+    return{name,snps};
+  });
+  if(data.every(m=>!m.snps.length)){grid.innerHTML='<div style="color:var(--mut);font-family:var(--mono);font-size:12px;padding:36px">Sin datos aún</div>';return;}
+  grid.innerHTML=data.map(({name,snps})=>{
+    if(!snps.length)return`<div class="moncard"><div class="monname">${name}</div><div class="monval" style="color:var(--mut);font-size:14px">Sin datos</div></div>`;
+    const first=snps[0];const last=snps[snps.length-1];
+    const pnl=snps.length>1?last.total-first.total:null;const pos=pnl>=0;
+
+    // Token diff: last vs first snapshot of the month, only if >= $5
+    let tokHTML='';
+    if(snps.length>1&&first.tokens&&last.tokens){
+      const diff=tokenDiff(first.tokens,last.tokens);
+      const entries=Object.entries(diff)
+        .filter(([tk,v])=>Math.abs(v)>0.000001&&Math.abs(v*tokPrice(tk))>=5)
+        .sort((a,b)=>Math.abs(b[1]*tokPrice(b[0]))-Math.abs(a[1]*tokPrice(a[0])));
+      if(entries.length){
+        tokHTML=`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr)">
+          <div style="font-size:9px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px">En Tokens</div>
+          <div style="font-size:11px;font-family:var(--mono);line-height:1.8">
+            ${entries.map(([tk,v])=>{
+              const usdVal=v*tokPrice(tk);
+              const usdStr=`<span style="color:var(--mut);font-size:10px"> (${usdVal>=0?'+':''}${fUSD(Math.abs(usdVal))})</span>`;
+              return`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>${usdStr}`;
+            }).join('<br>')}
+          </div>
+        </div>`;
+      }
+    }
+
+    return`<div class="moncard"><div class="monname">${name}</div>
+      <div class="monval ${pnl==null?'':pos?'pos':'neg'}">${pnl==null?fUSD(first.total):(pos?'+':'-')+fUSD(Math.abs(pnl))}</div>
+      <div class="monsub">${snps.length} snap${snps.length>1?'s':''} · último: ${fUSD(last.total)}</div>
+      ${tokHTML}
+    </div>`;
+  }).join('');
+}
+
+// RENDER OPS
+function renderOps(){
+  const tbody=document.getElementById('opsBody');
+  if(!ops.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr>';return;}
+  const sorted=[...ops].sort((a,b)=>b.date.localeCompare(a.date));
+  tbody.innerHTML=sorted.map(o=>{
+    const tm={realize:'tag-real',transfer:'tag-xfer',adjust:'tag-adj',ingreso:'tag-real'};
+    const tl={realize:'Realizar',transfer:'Transfer',adjust:'Ajuste',ingreso:'Ingreso'};
+    const subLabel=o.dirLabel||'';
+    const qty=o.qty!=null?((o.qty>=0?'+':'')+fAmt(o.qty)+' '+o.token):'—';
+    return`<tr>
+      <td>${o.date}</td>
+      <td><span class="tag ${tm[o.type]||''}">${tl[o.type]||o.type}</span>${subLabel?`<span style="font-size:9px;color:var(--mut);font-family:var(--mono);margin-left:4px">${subLabel}</span>`:''}</td>
+      <td style="color:var(--mut);max-width:200px">${o.desc||'—'}</td>
+      <td>${o.token||'—'}</td>
+      <td class="${o.qty>=0?'pos':'neg'}">${qty}</td>
+      <td>${o.usd?fUSD(o.usd):'—'}</td>
+      <td style="color:var(--mut);font-size:11px">${o.walletName||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// CHARTS
+function renderCharts(){
+  const sorted=[...snapshots].sort((a,b)=>a.date.localeCompare(b.date));
+  if(!sorted.length){
+    document.getElementById('portfolioChart').parentElement.innerHTML='<div class="chart-hdr"><span class="chart-title">Evolución del Portfolio</span></div><div style="color:var(--mut);font-family:var(--mono);font-size:12px;padding:20px;text-align:center">Sin snapshots aún — guardá el primero hoy</div>';
+    return;
+  }
+  const labels=sorted.map(s=>s.date);const totals=sorted.map(s=>s.total);
+  const ctx=document.getElementById('portfolioChart')?.getContext('2d');
+  if(!ctx)return;
+  if(portfolioChart)portfolioChart.destroy();
+  const chartData=chartMode==='total'?totals:sorted.map((s,i)=>i===0?0:s.total-sorted[i-1].total);
+  const chartColor=chartMode==='total'?'#00ff88':'#7c3aed';
+  portfolioChart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:chartMode==='total'?'Total USD':'P&L Diario',data:chartData,borderColor:chartColor,backgroundColor:chartColor+'22',borderWidth:2,fill:true,tension:.35,pointBackgroundColor:chartColor,pointRadius:3,pointHoverRadius:6}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'  '+fUSD(c.raw)}}},scales:{x:{ticks:{color:'#5a5a7a',font:{family:'Space Mono',size:10}},grid:{color:'#252535'}},y:{ticks:{color:'#5a5a7a',font:{family:'Space Mono',size:10},callback:v=>'$'+v.toLocaleString()},grid:{color:'#252535'}}}}});
+
+  // Donut
+  const toks=aggregateTokens();
+  const dctx=document.getElementById('distChart')?.getContext('2d');
+  if(!dctx)return;
+  if(distChart)distChart.destroy();
+  const dColors=['#00ff88','#7c9cff','#f0b90b','#ff7070','#a97aff','#4d8bff','#c67aff','#64748b','#34d399','#fb923c'];
+  const dLabels=[],dData=[];
+  for(const[tk,amt]of Object.entries(toks)){const usd=amt*tokPrice(tk);if(usd>0.01){dLabels.push(tk);dData.push(parseFloat(usd.toFixed(2)));}}
+  if(!dData.length){document.getElementById('distChart').parentElement.innerHTML='<div class="chart-hdr"><span class="chart-title">Distribución por Token</span></div><div style="color:var(--mut);font-family:var(--mono);font-size:12px;padding:20px;text-align:center">Sin balances cargados</div>';return;}
+  distChart=new Chart(dctx,{type:'doughnut',data:{labels:dLabels,datasets:[{data:dData,backgroundColor:dLabels.map((_,i)=>dColors[i%dColors.length]),borderWidth:2,borderColor:'#111118'}]},options:{responsive:true,plugins:{legend:{labels:{color:'#e8e8f0',font:{family:'Space Mono',size:11},padding:16}},tooltip:{callbacks:{label:c=>'  '+c.label+': '+fUSD(c.raw)+' ('+((c.raw/dData.reduce((a,b)=>a+b,0))*100).toFixed(1)+'%)'}}}}});
+}
+
+function setChartMode(mode,el){chartMode=mode;document.querySelectorAll('.ctab').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderCharts();}
+
+// SNAPSHOT
+function saveSnapshot(){
+  const toks=aggregateTokens();const tot=calcUSD(toks);
+  if(tot===0){alert('No hay balances cargados.');return;}
+  const snap={date:today(),total:tot,tokens:{...toks},wallets:wallets.length,ts:Date.now()};
+  snapshots=snapshots.filter(s=>s.date!==today());
+  snapshots.push(snap);
+  localStorage.setItem('ct_snaps',JSON.stringify(snapshots));
+  renderSummary();renderHistory();renderMonthly();
+  const btn=document.querySelector('#snapbar .btn-pri');
+  btn.textContent='✓ Guardado!';setTimeout(()=>btn.textContent='Guardar Snapshot Diario',2000);
+}
+
+function clearHistory(){if(!confirm('¿Limpiar historial?'))return;snapshots=[];localStorage.setItem('ct_snaps','[]');renderSummary();renderHistory();renderMonthly();}
+
+// MODALS
+function openModal(type,wid){
+  const ov=document.getElementById('modalOv');const box=document.getElementById('modalBox');ov.style.display='flex';
+
+  if(type==='addWallet'){
+    box.innerHTML=`<h2>➕ Agregar Wallet</h2>
+      <div class="fg"><label class="flbl">Nombre (opcional)</label><input class="finp" id="mWN" placeholder="Mi wallet principal"></div>
+      <div class="fg"><label class="flbl">Tipo de wallet</label>
+        <select class="fsel" id="mWType" onchange="updWalletType()">
+          <option value="evm_all">EVM — Todas las cadenas (ETH, BSC, Base, AVAX, MATIC)</option>
+          <option value="sol">Solana</option>
+          <option value="custom">Cadenas específicas...</option>
+        </select>
+      </div>
+      <div id="mWChainsWrap" style="display:none">
+        <div class="fg"><label class="flbl">Seleccioná las cadenas</label>
+          <div style="display:flex;flex-direction:column;gap:6px;background:var(--sur2);border:1px solid var(--bdr);border-radius:8px;padding:12px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" value="eth" checked> Ethereum (ETH)</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" value="bsc" checked> BNB Chain (BNB)</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" value="base" checked> Base (ETH)</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" value="avax" checked> Avalanche (AVAX)</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" value="matic" checked> Polygon (MATIC)</label>
+          </div>
+        </div>
+      </div>
+      <div class="fg"><label class="flbl">Dirección</label><input class="finp" id="mWA" placeholder="0x..."></div>
+      <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitAddWallet()">Agregar</button></div>`;
+    return;
+  }
+
+  if(type==='realize'){
+    const w=wid?wallets.find(x=>x.id===wid):null;
+    const b=wid?balances[wid]||{}:{};
+    // Manual tokens from ingreso ops
+    const manualToks={};
+    for(const op of ops.filter(o=>o.type==='ingreso')) manualToks[op.token]=(manualToks[op.token]||0)+op.qty;
+    for(const op of ops.filter(o=>o.type==='realize'&&o.isManual&&o.qty<0)){
+      if(op.token) manualToks[op.token]=(manualToks[op.token]||0)+op.qty;
+    }
+    const manualOpts=Object.entries(manualToks)
+      .filter(([,v])=>v>0.000001&&!NATIVES.includes(_=>false))
+      .map(([tk,v])=>`<option value="${tk}" data-manual="1">${tk} (${fAmt(v,4)} manual)</option>`).join('');
+    const tkOpts=wid
+      ?Object.keys(b).filter(k=>k!=='_error'&&k!=='_detail'&&!STABLES.includes(k)).map(k=>`<option value="${k}">${k} (${fAmt(b[k],4)} disponible)</option>`).join('')||NATIVES.map(t=>`<option value="${t}">${t}</option>`).join('')
+      :[...NATIVES.map(t=>`<option value="${t}">${t}</option>`),manualOpts].join('');
+    box.innerHTML=`<h2>💰 Realizar Ganancia</h2>
+      <p class="note">Convertís cripto a stables. Se registra como operación y <strong>no cuenta como pérdida</strong> — el sistema detecta el cambio comparando balances entre snapshots.</p>
+      <div class="fg" style="margin-top:14px"><label class="flbl">Token vendido</label><select class="fsel" id="mRT" onchange="updRealUSD()">${tkOpts}</select></div>
+      <div class="frow">
+        <div class="fg"><label class="flbl">Cantidad vendida</label><input class="finp" id="mRQ" type="number" step="any" placeholder="ej: 10" oninput="updRealUSD()"></div>
+        <div class="fg"><label class="flbl">USD recibido</label><input class="finp" id="mRU" type="number" step="any" placeholder="auto"></div>
+      </div>
+      <div class="fg"><label class="flbl">Stable recibida</label>
+        <select class="fsel" id="mRS"><option value="USDT">USDT</option><option value="USDC">USDC</option><option value="USD1">USD1</option></select></div>
+      <div class="fg"><label class="flbl">Notas</label><input class="finp" id="mRN" placeholder="ej: tomé ganancias de SOL"></div>
+      <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitRealize('${wid||''}')">Registrar</button></div>`;
+    return;
+  }
+
+  if(type==='transfer'){
+    const myWOpts=wallets.map(w=>{const chains=(w.chains||[w.chain]).map(c=>CHAINS[c]?.name||c).join(', ');return`<option value="${w.id}">${w.name||short(w.address)} (${chains})</option>`;}).join('');
+    const extOpt='<option value="_ext">Wallet externa (otra persona / exchange)</option>';
+    box.innerHTML=`<h2>⇄ Registrar Movimiento</h2>
+      <p class="note">Tanto las transferencias entre tus wallets como los movimientos a/desde wallets externas se registran <strong>sin afectar el P&L</strong>. El cambio de balance se detecta solo al comparar snapshots.</p>
+      <div class="fg" style="margin-top:14px">
+        <label class="flbl">Dirección del movimiento</label>
+        <select class="fsel" id="mXDir" onchange="updXferDir()">
+          <option value="between">Entre mis wallets</option>
+          <option value="out">Envié a wallet externa (salida)</option>
+          <option value="in">Recibí de wallet externa (entrada)</option>
+        </select>
+      </div>
+      <div id="mXBetweenWrap">
+        <div class="frow">
+          <div class="fg"><label class="flbl">Origen (mi wallet)</label><select class="fsel" id="mXF">${myWOpts}</select></div>
+          <div class="fg"><label class="flbl">Destino (mi wallet)</label><select class="fsel" id="mXT">${myWOpts}</select></div>
+        </div>
+      </div>
+      <div id="mXOutWrap" style="display:none">
+        <div class="frow">
+          <div class="fg"><label class="flbl">Desde (mi wallet)</label><select class="fsel" id="mXFromMy">${myWOpts}</select></div>
+          <div class="fg"><label class="flbl">Hacia (wallet externa)</label><input class="finp" id="mXToExt" placeholder="Dirección o nombre (ej: Binance)"></div>
+        </div>
+      </div>
+      <div id="mXInWrap" style="display:none">
+        <div class="frow">
+          <div class="fg"><label class="flbl">Desde (wallet externa)</label><input class="finp" id="mXFromExt" placeholder="Dirección o nombre (ej: Kraken)"></div>
+          <div class="fg"><label class="flbl">Hacia (mi wallet)</label><select class="fsel" id="mXToMy">${myWOpts}</select></div>
+        </div>
+      </div>
+      <div class="frow" style="margin-top:4px">
+        <div class="fg"><label class="flbl">Token</label><select class="fsel" id="mXTK">${ALL_TOKENS.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></div>
+        <div class="fg"><label class="flbl">Cantidad</label><input class="finp" id="mXQ" type="number" step="any" placeholder="0.00"></div>
+      </div>
+      <div class="fg"><label class="flbl">Motivo / Notas</label><input class="finp" id="mXN" placeholder="ej: retiro a exchange, pago a proveedor, recibí de amigo..."></div>
+      <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitTransfer()">Registrar</button></div>`;
+    return;
+  }
+
+  if(type==='ingreso'){
+    box.innerHTML=`<h2>💸 Agregar Ingreso Manual</h2>
+      <p class="note">Para registrar ganancias de chains o tokens que no trackeás con wallets (TОN, TRON, Arbitrum, una venta P2P, etc). <strong>No altera el P&L de tus wallets</strong>, se suma por separado en "Ingresos Manuales".</p>
+      <div class="frow" style="margin-top:14px">
+        <div class="fg"><label class="flbl">Token / Chain</label><input class="finp" id="mITok" placeholder="ej: TON, TRX, ARB, cualquier cosa"></div>
+        <div class="fg"><label class="flbl">Cantidad de tokens</label><input class="finp" id="mIQty" type="number" step="any" placeholder="ej: 150" oninput="updIngresoUSD()"></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="flbl">Precio unitario (USD)</label><input class="finp" id="mIPrecio" type="number" step="any" placeholder="ej: 3.50" oninput="updIngresoUSD()"></div>
+        <div class="fg"><label class="flbl">Total USD (calculado)</label><input class="finp" id="mIUSD" type="number" step="any" placeholder="0.00"></div>
+      </div>
+      <div class="fg"><label class="flbl">Descripción / Origen</label><input class="finp" id="mIDesc" placeholder="ej: farming TON, venta P2P, airdrop ARB..."></div>
+      <div class="fg"><label class="flbl">Fecha</label><input class="finp" id="mIFecha" type="date" value="${today()}"></div>
+      <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitIngreso()">Registrar</button></div>`;
+    return;
+  }
+
+  if(type==='adjust'){
+    const wOpts=['<option value="">Sin wallet específica</option>',...wallets.map(w=>`<option value="${w.id}">${w.name||short(w.address)}</option>`)].join('');
+    box.innerHTML=`<h2>✏️ Ajuste Manual</h2>
+      <p class="note">Corrección manual de balance. Puede ser + o −. No afecta el P&L acumulado, solo deja registro del motivo.</p>
+      <div class="frow" style="margin-top:14px">
+        <div class="fg"><label class="flbl">Token</label><select class="fsel" id="mAT">${ALL_TOKENS.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></div>
+        <div class="fg"><label class="flbl">Cantidad (+ o −)</label><input class="finp" id="mAQ" type="number" step="any" placeholder="ej: -0.005"></div>
+      </div>
+      <div class="fg"><label class="flbl">Wallet</label><select class="fsel" id="mAW">${wOpts}</select></div>
+      <div class="fg"><label class="flbl">Motivo</label><input class="finp" id="mAN" placeholder="ej: corrección de fees, error de lectura..."></div>
+      <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitAdjust()">Registrar</button></div>`;
+    return;
+  }
+}
+
+function closeModal(){document.getElementById('modalOv').style.display='none';}
+function openAddWallet(){openModal('addWallet');}
+function updWalletType(){
+  const t=document.getElementById('mWType')?.value;
+  const wrap=document.getElementById('mWChainsWrap');
+  const addr=document.getElementById('mWA');
+  if(wrap) wrap.style.display=t==='custom'?'block':'none';
+  if(addr) addr.placeholder=t==='sol'?'Dirección Solana (Base58)...':'0x...';
+}
+function updRealUSD(){const t=document.getElementById('mRT')?.value;const q=parseFloat(document.getElementById('mRQ')?.value||0);const u=document.getElementById('mRU');if(u&&t)u.value=(q*tokPrice(t)).toFixed(2);}
+
+function submitAddWallet(){
+  const name=document.getElementById('mWN').value.trim();
+  const wtype=document.getElementById('mWType').value;
+  const addr=document.getElementById('mWA').value.trim();
+  if(!addr){alert('Ingresá una dirección.');return;}
+  if(wtype==='sol'&&addr.startsWith('0x')){alert('Las wallets Solana no usan 0x');return;}
+  if(wtype!=='sol'&&!addr.startsWith('0x')){alert('Las wallets EVM deben empezar con 0x');return;}
+  let chains=[];
+  if(wtype==='sol') chains=['sol'];
+  else if(wtype==='evm_all') chains=['eth','bsc','base','avax','matic'];
+  else{
+    const cbs=document.querySelectorAll('#mWChainsWrap input[type=checkbox]:checked');
+    chains=Array.from(cbs).map(cb=>cb.value);
+    if(!chains.length){alert('Seleccioná al menos una cadena.');return;}
+  }
+  const w={id:uid(),name,chains,address:addr};
+  wallets.push(w);localStorage.setItem('ct_wallets',JSON.stringify(wallets));
+  closeModal();renderWallets();
+  fetchWallet(w).then(()=>{renderWallets();renderSummary();});
+}
+
+function submitRealize(wid){
+  const tok=document.getElementById('mRT').value;
+  const qty=parseFloat(document.getElementById('mRQ').value);
+  const usd=parseFloat(document.getElementById('mRU').value)||qty*tokPrice(tok);
+  const stable=document.getElementById('mRS').value;
+  const note=document.getElementById('mRN').value.trim();
+  if(!qty||qty<=0){alert('Ingresá una cantidad válida.');return;}
+  const w=wid?wallets.find(x=>x.id===wid):null;
+  // Detect if token is a manual one (not in wallets)
+  const sel=document.getElementById('mRT');
+  const isManual=sel?.selectedOptions[0]?.dataset?.manual==='1'||
+    (!wid&&!NATIVES.includes(tok)&&!STABLES.includes(tok));
+  ops.push({id:uid(),type:'realize',date:today(),token:tok,qty:-qty,stable,usd,
+    desc:note||(fAmt(qty,4)+' '+tok+' → '+stable),
+    walletName:w?.name||short(w?.address||'')||'Manual',
+    walletId:wid,isManual});
+  localStorage.setItem('ct_ops',JSON.stringify(ops));
+  closeModal();renderSummary();renderOps();
+  alert(`✓ Registrado: ${fAmt(qty,4)} ${tok} → ${fUSD(usd)} ${stable}`);
+}
+
+function updXferDir(){
+  const dir=document.getElementById('mXDir').value;
+  document.getElementById('mXBetweenWrap').style.display=dir==='between'?'block':'none';
+  document.getElementById('mXOutWrap').style.display=dir==='out'?'block':'none';
+  document.getElementById('mXInWrap').style.display=dir==='in'?'block':'none';
+}
+
+function submitTransfer(){
+  const dir=document.getElementById('mXDir').value;
+  const tok=document.getElementById('mXTK').value;
+  const qty=parseFloat(document.getElementById('mXQ').value);
+  const note=document.getElementById('mXN').value.trim();
+  if(!qty||qty<=0){alert('Ingresá una cantidad.');return;}
+
+  let fromName='',toName='',desc='';
+
+  if(dir==='between'){
+    const fromId=document.getElementById('mXF').value;
+    const toId=document.getElementById('mXT').value;
+    if(fromId===toId){alert('Origen y destino deben ser distintos.');return;}
+    const wF=wallets.find(x=>x.id===fromId);
+    const wT=wallets.find(x=>x.id===toId);
+    fromName=wF?.name||short(wF?.address||'');
+    toName=wT?.name||short(wT?.address||'');
+    desc=note||(fAmt(qty,4)+' '+tok+' · '+fromName+' → '+toName);
+  } else if(dir==='out'){
+    const fromId=document.getElementById('mXFromMy').value;
+    const extAddr=document.getElementById('mXToExt').value.trim();
+    if(!extAddr){alert('Ingresá la wallet o nombre de destino.');return;}
+    const wF=wallets.find(x=>x.id===fromId);
+    fromName=wF?.name||short(wF?.address||'');
+    toName=extAddr;
+    desc=note||(fAmt(qty,4)+' '+tok+' enviados desde '+fromName+' → '+extAddr);
+  } else if(dir==='in'){
+    const extAddr=document.getElementById('mXFromExt').value.trim();
+    const toId=document.getElementById('mXToMy').value;
+    if(!extAddr){alert('Ingresá la wallet o nombre de origen.');return;}
+    const wT=wallets.find(x=>x.id===toId);
+    fromName=extAddr;
+    toName=wT?.name||short(wT?.address||'');
+    desc=note||(fAmt(qty,4)+' '+tok+' recibidos de '+extAddr+' → '+toName);
+  }
+
+  const dirLabel={between:'Entre mis wallets',out:'Envío externo',in:'Recepción externa'};
+  ops.push({
+    id:uid(),type:'transfer',date:today(),token:tok,qty,
+    desc,walletName:fromName+'→'+toName,
+    subtype:dir,dirLabel:dirLabel[dir]||'Transfer'
+  });
+  localStorage.setItem('ct_ops',JSON.stringify(ops));
+  closeModal();renderOps();
+  alert('✓ Movimiento registrado. No afecta el P&L.');
+}
+
+function updIngresoUSD(){
+  const qty=parseFloat(document.getElementById('mIQty')?.value||0);
+  const precio=parseFloat(document.getElementById('mIPrecio')?.value||0);
+  const usdEl=document.getElementById('mIUSD');
+  if(usdEl&&qty&&precio) usdEl.value=(qty*precio).toFixed(2);
+}
+
+function submitIngreso(){
+  const tok=document.getElementById('mITok').value.trim().toUpperCase();
+  const qty=parseFloat(document.getElementById('mIQty').value)||0;
+  const precio=parseFloat(document.getElementById('mIPrecio').value)||0;
+  const usd=parseFloat(document.getElementById('mIUSD').value)||(qty*precio);
+  const desc=document.getElementById('mIDesc').value.trim();
+  const fecha=document.getElementById('mIFecha').value||today();
+  if(!tok){alert('Ingresá el nombre del token.');return;}
+  if(!usd||usd<=0){alert('Ingresá un monto en USD.');return;}
+  ops.push({id:uid(),type:'ingreso',date:fecha,token:tok,qty,usd,desc:desc||(qty+' '+tok),walletName:'Manual'});
+  localStorage.setItem('ct_ops',JSON.stringify(ops));
+  closeModal();renderSummary();renderOps();
+  alert(`✓ Ingreso registrado: ${qty} ${tok} = ${fUSD(usd)}`);
+}
+
+function submitAdjust(){
+  const tok=document.getElementById('mAT').value;const qty=parseFloat(document.getElementById('mAQ').value);
+  const note=document.getElementById('mAN').value.trim();const wid=document.getElementById('mAW').value;
+  if(isNaN(qty)){alert('Ingresá una cantidad.');return;}
+  const w=wid?wallets.find(x=>x.id===wid):null;
+  ops.push({id:uid(),type:'adjust',date:today(),token:tok,qty,usd:qty*tokPrice(tok),desc:note||'Ajuste manual',walletName:w?.name||short(w?.address||''),walletId:wid});
+  localStorage.setItem('ct_ops',JSON.stringify(ops));
+  closeModal();renderSummary();renderOps();alert('✓ Ajuste registrado.');
+}
+
+function removeWallet(id){
+  if(!confirm('¿Eliminar esta wallet?'))return;
+  wallets=wallets.filter(w=>w.id!==id);delete balances[id];
+  localStorage.setItem('ct_wallets',JSON.stringify(wallets));
+  renderWallets();renderSummary();
+}
+
+// TABS
+function showTab(name){
+  ['wallets','grafico','historial','mensual','ops'].forEach(t=>{
+    document.getElementById('panel-'+t).style.display=t===name?'block':'none';
+    document.getElementById('tab-'+t).className='tab'+(t===name?' active':'');
+  });
+  if(name==='historial')renderHistory();
+  if(name==='mensual')renderMonthly();
+  if(name==='ops')renderOps();
+  if(name==='grafico')renderCharts();
+}
+
+// REFRESH
+async function refreshAll(){
+  const dot=document.getElementById('statusDot');const upd=document.getElementById('lastUpd');
+  dot.className='dot';upd.textContent='Actualizando...';
+  await fetchPrices();
+  await Promise.all(wallets.map(fetchWallet));
+  renderWallets();renderSummary();
+  upd.textContent='Actualizado: '+new Date().toLocaleTimeString('es-AR');
+  dot.className='dot live';
+}
+
+(async()=>{renderWallets();renderSummary();await refreshAll();})();
+
+// Actualiza precios y balances cada 15 minutos (sin guardar snapshot)
+setInterval(()=>{ refreshAll(); }, 15 * 60 * 1000);
+
+
+</script>
+</body>
+</html>
