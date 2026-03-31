@@ -399,7 +399,7 @@ async function fetchEVM(addr,chain){
 
 // Solana: multi-endpoint with CORS support for file:// origins
 const SOL_ENDPOINTS = [
-  // These endpoints work from https:// origins without API key
+  'https://mainnet.helius-rpc.com/?api-key=46825c4c-b9a1-43f1-8f71-5ae8ae384b58',
   'https://solana-rpc.publicnode.com',
   'https://rpc.ankr.com/solana',
   'https://api.mainnet-beta.solana.com',
@@ -1137,8 +1137,7 @@ async function refreshAll(){
 
 (async()=>{renderWallets();renderSummary();await refreshAll();})();
 
-// Actualiza precios y balances cada 15 minutos (sin guardar snapshot)
-setInterval(()=>{ refreshAll(); }, 15 * 60 * 1000);
+// Actualización manual únicamente — usar botón ↻ Actualizar
 
 
 </script>
