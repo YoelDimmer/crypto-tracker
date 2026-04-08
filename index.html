@@ -710,16 +710,54 @@ function renderHistory(){
   const tbody=document.getElementById('histBody');
   if(!snapshots.length){tbody.innerHTML='<tr><td colspan="10" style="text-align:center;padding:36px;color:var(--mut)">Sin historial aún</td></tr>';return;}
   const s=[...snapshots].sort((a,b)=>b.date.localeCompare(a.date));
+
+  // Helper: render token cell with diff vs previous snapshot
+  function tokCell(tok, snap, prev){
+    const t=snap.tokens||{};
+    const cur=t[tok]||0;
+    if(!cur) return'<td style="color:var(--mut)">—</td>';
+    const curStr=fAmt(cur,4);
+    if(!prev||!prev.tokens) return`<td style="font-family:var(--mono);font-size:12px">${curStr}</td>`;
+    const prevAmt=prev.tokens[tok]||0;
+    const diff=cur-prevAmt;
+    if(Math.abs(diff)<0.000001) return`<td style="font-family:var(--mono);font-size:12px">${curStr}</td>`;
+    const pos=diff>0;
+    const diffStr=(pos?'(+':' (')+fAmt(Math.abs(diff),4)+')';
+    return`<td style="font-family:var(--mono);font-size:12px">
+      ${curStr}<br>
+      <span style="font-size:10px;color:${pos?'var(--acc)':'var(--red)'};font-weight:700">${diffStr}</span>
+    </td>`;
+  }
+
   tbody.innerHTML=s.map((snap,i)=>{
-    const prev=s[i+1];const pnl=prev?snap.total-prev.total:null;const pct=prev&&prev.total?pnl/prev.total*100:null;const pos=pnl>=0;
-    const t=snap.tokens||{};const stables=STABLES.reduce((a,tk)=>a+(t[tk]||0),0);
+    const prev=s[i+1]||null;
+    const pnl=prev?snap.total-prev.total:null;
+    const pct=prev&&prev.total?pnl/prev.total*100:null;
+    const pos=pnl>=0;
+    const t=snap.tokens||{};
+    const stables=STABLES.reduce((a,tk)=>a+(t[tk]||0),0);
+    const prevStables=prev?STABLES.reduce((a,tk)=>a+((prev.tokens||{})[tk]||0),0):null;
+    const stableDiff=prevStables!=null?stables-prevStables:null;
+    const stablePos=stableDiff>=0;
+    const stableCell=stables>0
+      ? `<td style="font-family:var(--mono);font-size:12px">${fUSD(stables)}${
+          stableDiff!=null&&Math.abs(stableDiff)>0.01
+            ?`<br><span style="font-size:10px;color:${stablePos?'var(--acc)':'var(--red)'};font-weight:700">${stablePos?'(+':'('}${fUSD(Math.abs(stableDiff))})</span>`
+            :''
+        }</td>`
+      : '<td style="color:var(--mut)">—</td>';
+
     return`<tr>
-      <td>${snap.date}</td><td>${fUSD(snap.total)}</td>
-      <td class="${pnl==null?'':pos?'pos':'neg'}">${pnl==null?'—':fSign(pnl)}</td>
-      <td class="${pct==null?'':pos?'pos':'neg'}">${pct==null?'—':fPct(pct)}</td>
-      <td>${t.SOL?fAmt(t.SOL):'—'}</td><td>${t.ETH?fAmt(t.ETH):'—'}</td>
-      <td>${t.BNB?fAmt(t.BNB):'—'}</td><td>${t.AVAX?fAmt(t.AVAX):'—'}</td>
-      <td>${t.MATIC?fAmt(t.MATIC):'—'}</td><td>${stables>0?fUSD(stables):'—'}</td>
+      <td style="font-family:var(--mono);font-size:12px">${snap.date}</td>
+      <td style="font-family:var(--mono);font-size:12px">${fUSD(snap.total)}</td>
+      <td class="${pnl==null?'':pos?'pos':'neg'}" style="font-family:var(--mono);font-size:12px">${pnl==null?'—':fSign(pnl)}</td>
+      <td class="${pct==null?'':pos?'pos':'neg'}" style="font-family:var(--mono);font-size:12px">${pct==null?'—':fPct(pct)}</td>
+      ${tokCell('SOL',snap,prev)}
+      ${tokCell('ETH',snap,prev)}
+      ${tokCell('BNB',snap,prev)}
+      ${tokCell('AVAX',snap,prev)}
+      ${tokCell('MATIC',snap,prev)}
+      ${stableCell}
     </tr>`;
   }).join('');
 }
