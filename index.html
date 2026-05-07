@@ -54,6 +54,7 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
 .cbase{background:#0052ff22;color:#4d8bff;border:1px solid #0052ff55}
 .cavax{background:#e8414222;color:#ff7070;border:1px solid #e8414255}
 .cmatic{background:#8247e522;color:#a97aff;border:1px solid #8247e555}
+.cton{background:#0088cc22;color:#40b3e0;border:1px solid #0088cc55}
 .wname{font-size:14px;font-weight:700}
 .waddr{font-family:var(--mono);font-size:10px;color:var(--mut)}
 .wbody{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
@@ -220,8 +221,8 @@ tr:last-child td{border-bottom:none}
   </div>
   <div class="tbl-wrap">
     <table>
-      <thead><tr><th>Fecha</th><th>Total USD</th><th>P&L USD</th><th>P&L %</th><th>SOL</th><th>ETH</th><th>BNB</th><th>AVAX</th><th>MATIC</th><th>Stables USD</th></tr></thead>
-      <tbody id="histBody"><tr><td colspan="10" style="text-align:center;padding:36px;color:var(--mut)">Sin historial aún</td></tr></tbody>
+      <thead><tr><th>Fecha</th><th>Total USD</th><th>P&L USD</th><th>P&L %</th><th>SOL</th><th>ETH</th><th>BNB</th><th>AVAX</th><th>MATIC</th><th>TON</th><th>Stables USD</th></tr></thead>
+      <tbody id="histBody"><tr><td colspan="11" style="text-align:center;padding:36px;color:var(--mut)">Sin historial aún</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -308,6 +309,7 @@ const CHAINS={
   avax:{name:'Avalanche',sym:'AVAX',id:'avalanche-2',cls:'cavax',evm:true},
   matic:{name:'Polygon',sym:'MATIC',id:'matic-network',cls:'cmatic',evm:true},
   sol:{name:'Solana',sym:'SOL',id:'solana',cls:'csol',evm:false},
+  ton:{name:'TON',sym:'TON',id:'the-open-network',cls:'cton',evm:false},
 };
 const STABLES=['USDT','USDC','USD1','DAI','BUSD'];
 // Chain accent colors for token badges
@@ -318,8 +320,9 @@ const CHAIN_COLORS={
   avax: {bg:'#e8414222',color:'#ff7070',label:'AVAX'},
   matic:{bg:'#8247e522',color:'#c084fc',label:'MATIC'},
   sol:  {bg:'#9945ff22',color:'#c67aff',label:'SOL'},
+  ton:  {bg:'#0088cc22',color:'#40b3e0',label:'TON'},
 };
-const NATIVES=['ETH','SOL','BNB','AVAX','MATIC'];
+const NATIVES=['ETH','SOL','BNB','AVAX','MATIC','TON'];
 const ALL_TOKENS=[...NATIVES,...STABLES];
 const STABLE_CONTRACTS={
   eth:{USDT:'0xdAC17F958D2ee523a2206206994597C13D831ec7',USDC:'0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'},
@@ -350,10 +353,10 @@ const tokPrice=t=>STABLES.includes(t)?1:(prices[t]||0);
 // PRICES
 async function fetchPrices(){
   try{
-    const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana,binancecoin,avalanche-2,matic-network&vs_currencies=usd&include_24hr_change=true');
+    const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana,binancecoin,avalanche-2,matic-network,the-open-network&vs_currencies=usd&include_24hr_change=true');
     const d=await r.json();
-    prices={ETH:d.ethereum?.usd,SOL:d.solana?.usd,BNB:d.binancecoin?.usd,AVAX:d['avalanche-2']?.usd,MATIC:d['matic-network']?.usd,USDT:1,USDC:1,USD1:1,DAI:1,BUSD:1};
-    const tkns=[{id:'ethereum',s:'ETH'},{id:'solana',s:'SOL'},{id:'binancecoin',s:'BNB'},{id:'avalanche-2',s:'AVAX'},{id:'matic-network',s:'MATIC'}];
+    prices={ETH:d.ethereum?.usd,SOL:d.solana?.usd,BNB:d.binancecoin?.usd,AVAX:d['avalanche-2']?.usd,MATIC:d['matic-network']?.usd,TON:d['the-open-network']?.usd,USDT:1,USDC:1,USD1:1,DAI:1,BUSD:1};
+    const tkns=[{id:'ethereum',s:'ETH'},{id:'solana',s:'SOL'},{id:'binancecoin',s:'BNB'},{id:'avalanche-2',s:'AVAX'},{id:'matic-network',s:'MATIC'},{id:'the-open-network',s:'TON'}];
     document.getElementById('pricesBar').innerHTML=tkns.map(t=>{
       const x=d[t.id];if(!x)return'';
       const c=(x.usd_24h_change||0).toFixed(2);const pos=c>=0;
@@ -459,6 +462,54 @@ async function fetchSOL(addr){
   return res;
 }
 
+// TON: uses public toncenter API
+async function fetchTON(addr){
+  const res={};
+  try{
+    // Native TON balance
+    const r=await fetch(`https://toncenter.com/api/v2/getAddressInformation?address=${encodeURIComponent(addr)}`,{
+      headers:{'accept':'application/json'}
+    });
+    if(!r.ok) throw new Error('toncenter '+r.status);
+    const j=await r.json();
+    if(j?.ok&&j?.result?.balance!=null){
+      res.TON=parseInt(j.result.balance)/1e9;
+    }
+  }catch(e){
+    // Fallback: tonapi.io
+    try{
+      const r2=await fetch(`https://tonapi.io/v2/accounts/${encodeURIComponent(addr)}`,{
+        headers:{'accept':'application/json'}
+      });
+      if(r2.ok){
+        const j2=await r2.json();
+        if(j2?.balance!=null) res.TON=parseInt(j2.balance)/1e9;
+      }
+    }catch(e2){}
+  }
+  // USDT on TON (jetton)
+  try{
+    const USDT_MASTER='EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+    const r=await fetch(`https://tonapi.io/v2/accounts/${encodeURIComponent(addr)}/jettons?currencies=usd`,{
+      headers:{'accept':'application/json'}
+    });
+    if(r.ok){
+      const j=await r.json();
+      for(const jetton of (j?.balances||[])){
+        const master=jetton?.jetton?.address;
+        const sym=jetton?.jetton?.symbol?.toUpperCase();
+        const dec=jetton?.jetton?.decimals||6;
+        const bal=jetton?.balance;
+        if(bal&&bal!=='0'&&(sym==='USDT'||sym==='USDC'||master===USDT_MASTER)){
+          const amt=parseInt(bal)/Math.pow(10,dec);
+          if(amt>0.001) res[sym||'USDT']=(res[sym||'USDT']||0)+amt;
+        }
+      }
+    }
+  }catch(e){}
+  return res;
+}
+
 async function fetchWallet(w){
   const el=document.getElementById('wc-'+w.id);
   if(el)el.classList.add('loading');
@@ -467,7 +518,7 @@ async function fetchWallet(w){
     const combined={};   // {TOKEN: total_amount}
     const detail=[];     // [{chain, token, amount}] for display
     for(const chain of chains){
-      const res=chain==='sol'?await fetchSOL(w.address):await fetchEVM(w.address,chain);
+      const res=chain==='sol'?await fetchSOL(w.address):chain==='ton'?await fetchTON(w.address):await fetchEVM(w.address,chain);
       for(const[tk,amt]of Object.entries(res)){
         if(amt>0.000001){
           combined[tk]=(combined[tk]||0)+amt;
@@ -708,7 +759,7 @@ function renderSummary(){
 // RENDER HISTORY
 function renderHistory(){
   const tbody=document.getElementById('histBody');
-  if(!snapshots.length){tbody.innerHTML='<tr><td colspan="10" style="text-align:center;padding:36px;color:var(--mut)">Sin historial aún</td></tr>';return;}
+  if(!snapshots.length){tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:36px;color:var(--mut)">Sin historial aún</td></tr>';return;}
   const s=[...snapshots].sort((a,b)=>b.date.localeCompare(a.date));
 
   // Helper: render token cell with diff vs previous snapshot
@@ -757,6 +808,7 @@ function renderHistory(){
       ${tokCell('BNB',snap,prev)}
       ${tokCell('AVAX',snap,prev)}
       ${tokCell('MATIC',snap,prev)}
+      ${tokCell('TON',snap,prev)}
       ${stableCell}
     </tr>`;
   }).join('');
@@ -884,6 +936,7 @@ function openModal(type,wid){
         <select class="fsel" id="mWType" onchange="updWalletType()">
           <option value="evm_all">EVM — Todas las cadenas (ETH, BSC, Base, AVAX, MATIC)</option>
           <option value="sol">Solana</option>
+          <option value="ton">TON</option>
           <option value="custom">Cadenas específicas...</option>
         </select>
       </div>
@@ -1011,7 +1064,8 @@ function updWalletType(){
   const wrap=document.getElementById('mWChainsWrap');
   const addr=document.getElementById('mWA');
   if(wrap) wrap.style.display=t==='custom'?'block':'none';
-  if(addr) addr.placeholder=t==='sol'?'Dirección Solana (Base58)...':'0x...';
+  const ph={sol:'Dirección Solana (Base58)...',ton:'Dirección TON (UQ... o EQ...)...'};
+  if(addr) addr.placeholder=ph[t]||'0x...';
 }
 function updRealUSD(){const t=document.getElementById('mRT')?.value;const q=parseFloat(document.getElementById('mRQ')?.value||0);const u=document.getElementById('mRU');if(u&&t)u.value=(q*tokPrice(t)).toFixed(2);}
 
@@ -1021,9 +1075,11 @@ function submitAddWallet(){
   const addr=document.getElementById('mWA').value.trim();
   if(!addr){alert('Ingresá una dirección.');return;}
   if(wtype==='sol'&&addr.startsWith('0x')){alert('Las wallets Solana no usan 0x');return;}
-  if(wtype!=='sol'&&!addr.startsWith('0x')){alert('Las wallets EVM deben empezar con 0x');return;}
+  if(wtype==='ton'&&addr.startsWith('0x')){alert('Las wallets TON no usan 0x');return;}
+  if(wtype!=='sol'&&wtype!=='ton'&&!addr.startsWith('0x')){alert('Las wallets EVM deben empezar con 0x');return;}
   let chains=[];
   if(wtype==='sol') chains=['sol'];
+  else if(wtype==='ton') chains=['ton'];
   else if(wtype==='evm_all') chains=['eth','bsc','base','avax','matic'];
   else{
     const cbs=document.querySelectorAll('#mWChainsWrap input[type=checkbox]:checked');
