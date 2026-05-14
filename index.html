@@ -715,7 +715,8 @@ function renderWallets(){
           <div class="wtval">${fUSD(wusd)}</div>
           <div class="wacts">
             <button class="btn btn-pur btn-sm" onclick="openModal('realize','${w.id}')">💰 Realizar</button>
-            <button class="icon-btn del" onclick="removeWallet('${w.id}')">✕</button>
+            <button class="icon-btn" onclick="openEditWallet('${w.id}')" title="Editar wallet">✏️</button>
+            <button class="icon-btn del" onclick="removeWallet('${w.id}')" title="Eliminar">✕</button>
           </div>
         </div>
       </div>
@@ -1381,6 +1382,82 @@ function submitAdjust(){
   ops.push({id:uid(),type:'adjust',date:today(),token:tok,qty,usd:qty*tokPrice(tok),desc:note||'Ajuste manual',walletName:w?.name||short(w?.address||''),walletId:wid});
   localStorage.setItem('ct_ops',JSON.stringify(ops));
   closeModal();renderSummary();renderOps();alert('✓ Ajuste registrado.');
+}
+
+function openEditWallet(id){
+  const w = wallets.find(x=>x.id===id);
+  if(!w) return;
+  const currentChains = w.chains || (w.chain ? [w.chain] : []);
+  const allChains = [
+    {id:'eth',  label:'Ethereum (ETH)'},
+    {id:'bsc',  label:'BNB Chain (BNB)'},
+    {id:'base', label:'Base (ETH)'},
+    {id:'avax', label:'Avalanche (AVAX)'},
+    {id:'matic',label:'Polygon (MATIC)'},
+    {id:'sol',  label:'Solana (SOL)'},
+    {id:'ton',  label:'TON'},
+    {id:'hyper',label:'HyperEVM (HYPE)'},
+    {id:'mega', label:'MegaETH (ETH)'},
+  ];
+  const isSolLike = currentChains.some(c=>['sol','ton'].includes(c));
+
+  const box = document.getElementById('modalBox');
+  const ov  = document.getElementById('modalOv');
+  ov.style.display = 'flex';
+
+  box.innerHTML = `<h2>✏️ Editar Wallet</h2>
+    <div class="fg">
+      <label class="flbl">Nombre</label>
+      <input class="finp" id="eWName" value="${w.name||''}" placeholder="Nombre de la wallet">
+    </div>
+    <div class="fg">
+      <label class="flbl">Dirección</label>
+      <input class="finp" id="eWAddr" value="${w.address}" style="color:var(--mut);font-size:11px">
+    </div>
+    <div class="fg">
+      <label class="flbl">Cadenas activas</label>
+      <div style="display:flex;flex-direction:column;gap:6px;background:var(--sur2);border:1px solid var(--bdr);border-radius:8px;padding:12px">
+        ${allChains.map(c=>{
+          const checked = currentChains.includes(c.id);
+          const isSolTon = ['sol','ton'].includes(c.id);
+          const isEVM    = !isSolTon;
+          // Show all but disable incompatible ones
+          const addrIsSol = !w.address.startsWith('0x');
+          const disabled  = (addrIsSol && isEVM) || (!addrIsSol && isSolTon);
+          return `<label style="display:flex;align-items:center;gap:8px;cursor:${disabled?'not-allowed':'pointer'};opacity:${disabled?0.35:1};font-size:13px">
+            <input type="checkbox" value="${c.id}" ${checked?'checked':''} ${disabled?'disabled':''}>
+            ${c.label}
+          </label>`;
+        }).join('')}
+      </div>
+      <div class="note" style="margin-top:8px">Las cadenas incompatibles con el formato de dirección están deshabilitadas.</div>
+    </div>
+    <div class="macts">
+      <button class="btn btn-gho" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-pri" onclick="submitEditWallet('${id}')">Guardar y Actualizar</button>
+    </div>`;
+}
+
+function submitEditWallet(id){
+  const w = wallets.find(x=>x.id===id);
+  if(!w) return;
+  const name = document.getElementById('eWName').value.trim();
+  const addr = document.getElementById('eWAddr').value.trim();
+  const cbs  = document.querySelectorAll('#modalBox input[type=checkbox]:checked:not(:disabled)');
+  const chains = Array.from(cbs).map(cb=>cb.value);
+  if(!chains.length){ alert('Seleccioná al menos una cadena.'); return; }
+  if(!addr){ alert('La dirección no puede estar vacía.'); return; }
+
+  w.name    = name;
+  w.address = addr;
+  w.chains  = chains;
+  delete w.chain; // remove old single-chain format if present
+
+  localStorage.setItem('ct_wallets', JSON.stringify(wallets));
+  closeModal();
+  renderWallets();
+  // Re-fetch balance with updated chains
+  fetchWallet(w).then(()=>{ renderWallets(); renderSummary(); });
 }
 
 function removeWallet(id){
