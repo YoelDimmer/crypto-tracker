@@ -249,8 +249,8 @@ tr:last-child td{border-bottom:none}
   </div>
   <div class="tbl-wrap">
     <table>
-      <thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Token</th><th>Cantidad</th><th>USD</th><th>Wallet</th></tr></thead>
-      <tbody id="opsBody"><tr><td colspan="7" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr></tbody>
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Token</th><th>Cantidad</th><th>USD</th><th>Wallet</th><th></th></tr></thead>
+      <tbody id="opsBody"><tr><td colspan="8" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -950,7 +950,7 @@ function renderMonthly(){
 // RENDER OPS
 function renderOps(){
   const tbody=document.getElementById('opsBody');
-  if(!ops.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr>';return;}
+  if(!ops.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr>';return;}
   const sorted=[...ops].sort((a,b)=>b.date.localeCompare(a.date));
   tbody.innerHTML=sorted.map(o=>{
     const tm={realize:'tag-real',transfer:'tag-xfer',adjust:'tag-adj',ingreso:'tag-real'};
@@ -965,8 +965,22 @@ function renderOps(){
       <td class="${o.qty>=0?'pos':'neg'}">${qty}</td>
       <td>${o.usd?fUSD(o.usd):'—'}</td>
       <td style="color:var(--mut);font-size:11px">${o.walletName||'—'}</td>
+      <td><button class="icon-btn del" onclick="deleteOp('${o.id}')" title="Eliminar operación">✕</button></td>
     </tr>`;
   }).join('');
+}
+
+function deleteOp(id){
+  const op = ops.find(o=>o.id===id);
+  if(!op) return;
+  const label = op.desc || (op.type+' '+op.token);
+  if(!confirm('¿Eliminar esta operación?
+
+'+label)) return;
+  ops = ops.filter(o=>o.id!==id);
+  localStorage.setItem('ct_ops', JSON.stringify(ops));
+  renderOps();
+  renderSummary();
 }
 
 // CHARTS
