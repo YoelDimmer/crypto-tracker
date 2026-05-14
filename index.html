@@ -55,6 +55,8 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
 .cavax{background:#e8414222;color:#ff7070;border:1px solid #e8414255}
 .cmatic{background:#8247e522;color:#a97aff;border:1px solid #8247e555}
 .cton{background:#0088cc22;color:#40b3e0;border:1px solid #0088cc55}
+.chyper{background:#00e5ff22;color:#00e5ff;border:1px solid #00e5ff55}
+.cmega{background:#ff6b3522;color:#ff9a70;border:1px solid #ff6b3555}
 .wname{font-size:14px;font-weight:700}
 .waddr{font-family:var(--mono);font-size:10px;color:var(--mut)}
 .wbody{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
@@ -201,7 +203,8 @@ tr:last-child td{border-bottom:none}
     <div class="chart-hdr">
       <span class="chart-title">Evolución del Portfolio (USD)</span>
       <div class="chart-tabs">
-        <button class="ctab active" onclick="setChartMode('total',this)">Total</button>
+        <button class="ctab active" onclick="setChartMode('both',this)">Portfolio + Rendimiento</button>
+        <button class="ctab" onclick="setChartMode('total',this)">Solo Portfolio</button>
         <button class="ctab" onclick="setChartMode('pnl',this)">P&L Diario</button>
       </div>
     </div>
@@ -265,7 +268,7 @@ let snapshots=JSON.parse(localStorage.getItem('ct_snaps')||'[]');
 let ops=JSON.parse(localStorage.getItem('ct_ops')||'[]');
 let prices={};
 let balances={};
-let chartMode='total';
+let chartMode='both';
 let portfolioChart=null,distChart=null;
 
 // ── EXPORT / IMPORT (backup to file) ──
@@ -310,6 +313,8 @@ const CHAINS={
   matic:{name:'Polygon',sym:'MATIC',id:'matic-network',cls:'cmatic',evm:true},
   sol:{name:'Solana',sym:'SOL',id:'solana',cls:'csol',evm:false},
   ton:{name:'TON',sym:'TON',id:'the-open-network',cls:'cton',evm:false},
+  hyper:{name:'HyperEVM',sym:'HYPE',id:'hyperliquid',cls:'chyper',evm:true},
+  mega:{name:'MegaETH',sym:'ETH',id:'ethereum',cls:'cmega',evm:true},
 };
 const STABLES=['USDT','USDC','USD1','DAI','BUSD'];
 // Chain accent colors for token badges
@@ -321,8 +326,10 @@ const CHAIN_COLORS={
   matic:{bg:'#8247e522',color:'#c084fc',label:'MATIC'},
   sol:  {bg:'#9945ff22',color:'#c67aff',label:'SOL'},
   ton:  {bg:'#0088cc22',color:'#40b3e0',label:'TON'},
+  hyper:{bg:'#00e5ff22',color:'#00e5ff',label:'HYPE'},
+  mega: {bg:'#ff6b3522',color:'#ff9a70',label:'MEGA'},
 };
-const NATIVES=['ETH','SOL','BNB','AVAX','MATIC','TON'];
+const NATIVES=['ETH','SOL','BNB','AVAX','MATIC','TON','HYPE'];
 const ALL_TOKENS=[...NATIVES,...STABLES];
 const STABLE_CONTRACTS={
   eth:{USDT:'0xdAC17F958D2ee523a2206206994597C13D831ec7',USDC:'0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'},
@@ -330,6 +337,7 @@ const STABLE_CONTRACTS={
   base:{USDC:'0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'},
   avax:{USDT:'0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7',USDC:'0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E'},
   matic:{USDT:'0xc2132D05D31c914a87C6611C10748AEb04B58e8F',USDC:'0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'},
+  hyper:{USDC:'0x1Cd0cd01c8C902AdAb3430ae04b9ea32CB309CF1'},
 };
 const STABLE_DEC={eth:{USDT:6,USDC:6},bsc:{USDT:18,USDC:18,USD1:18},base:{USDC:6},avax:{USDT:6,USDC:6},matic:{USDT:6,USDC:6}};
 const RPCS={
@@ -338,6 +346,8 @@ const RPCS={
   base: ['https://mainnet.base.org','https://base.llamarpc.com','https://rpc.ankr.com/base'],
   avax: ['https://api.avax.network/ext/bc/C/rpc','https://rpc.ankr.com/avalanche','https://avax.llamarpc.com'],
   matic:['https://polygon.llamarpc.com','https://rpc.ankr.com/polygon','https://polygon-bor-rpc.publicnode.com'],
+  hyper:['https://rpc.hyperliquid.xyz/evm','https://rpc.hyperliquid-testnet.xyz/evm'],
+  mega: ['https://carrot.megaeth.com/rpc','https://mega.ethpandaops.io'],
 };
 
 // UTILS
@@ -353,10 +363,10 @@ const tokPrice=t=>STABLES.includes(t)?1:(prices[t]||0);
 // PRICES
 async function fetchPrices(){
   try{
-    const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana,binancecoin,avalanche-2,matic-network,the-open-network&vs_currencies=usd&include_24hr_change=true');
+    const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana,binancecoin,avalanche-2,matic-network,the-open-network,hyperliquid&vs_currencies=usd&include_24hr_change=true');
     const d=await r.json();
-    prices={ETH:d.ethereum?.usd,SOL:d.solana?.usd,BNB:d.binancecoin?.usd,AVAX:d['avalanche-2']?.usd,MATIC:d['matic-network']?.usd,TON:d['the-open-network']?.usd,USDT:1,USDC:1,USD1:1,DAI:1,BUSD:1};
-    const tkns=[{id:'ethereum',s:'ETH'},{id:'solana',s:'SOL'},{id:'binancecoin',s:'BNB'},{id:'avalanche-2',s:'AVAX'},{id:'matic-network',s:'MATIC'},{id:'the-open-network',s:'TON'}];
+    prices={ETH:d.ethereum?.usd,SOL:d.solana?.usd,BNB:d.binancecoin?.usd,AVAX:d['avalanche-2']?.usd,MATIC:d['matic-network']?.usd,TON:d['the-open-network']?.usd,HYPE:d['hyperliquid']?.usd,USDT:1,USDC:1,USD1:1,DAI:1,BUSD:1};
+    const tkns=[{id:'ethereum',s:'ETH'},{id:'solana',s:'SOL'},{id:'binancecoin',s:'BNB'},{id:'avalanche-2',s:'AVAX'},{id:'matic-network',s:'MATIC'},{id:'the-open-network',s:'TON'},{id:'hyperliquid',s:'HYPE'}];
     document.getElementById('pricesBar').innerHTML=tkns.map(t=>{
       const x=d[t.id];if(!x)return'';
       const c=(x.usd_24h_change||0).toFixed(2);const pos=c>=0;
@@ -369,12 +379,19 @@ async function fetchPrices(){
 async function evmPost(chain, body){
   const rpcs = RPCS[chain] || [];
   for(const rpc of rpcs){
-    try{
-      const r = await fetch(rpc, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-      if(!r.ok) continue;
-      const j = await r.json();
-      if(j?.result !== undefined && !j?.error) return j.result;
-    } catch(e){ continue; }
+    for(let attempt=0; attempt<2; attempt++){
+      try{
+        const r = await fetch(rpc, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({...body, id:Math.floor(Math.random()*99999)})
+        });
+        if(!r.ok){ await new Promise(r=>setTimeout(r,300)); continue; }
+        const j = await r.json();
+        if(j?.error){ console.warn('EVM RPC error',rpc,j.error.message); break; }
+        if(j?.result !== undefined) return j.result;
+      } catch(e){ await new Promise(r=>setTimeout(r,300)); continue; }
+    }
   }
   return null;
 }
@@ -415,20 +432,21 @@ const SOL_MINTS = {
 
 async function solPost(method, params){
   for(const url of SOL_ENDPOINTS){
-    try{
-      const r = await fetch(url, {
-        method: 'POST',
-        mode: 'cors',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({jsonrpc:'2.0', id:Math.floor(Math.random()*9999), method, params})
-      });
-      if(!r.ok){ console.warn('SOL RPC',url,'status',r.status); continue; }
-      const j = await r.json();
-      if(j?.error){ console.warn('SOL RPC error',j.error); continue; }
-      if(j?.result !== undefined) return j.result;
-    } catch(e){ console.warn('SOL fetch failed',url,e.message); continue; }
+    for(let attempt=0; attempt<2; attempt++){
+      try{
+        const r = await fetch(url, {
+          method: 'POST',
+          mode: 'cors',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({jsonrpc:'2.0', id:Math.floor(Math.random()*99999), method, params})
+        });
+        if(!r.ok){ await new Promise(r=>setTimeout(r,500)); continue; }
+        const j = await r.json();
+        if(j?.error){ console.warn('SOL RPC error',url,j.error); break; }
+        if(j?.result !== undefined) return j.result;
+      } catch(e){ await new Promise(r=>setTimeout(r,500)); continue; }
+    }
   }
-  console.error('All Solana RPCs failed');
   return null;
 }
 
@@ -574,6 +592,58 @@ function tokenDiff(prevToks,curToks){
   return diff;
 }
 
+// Returns net USD flow from transfers between two dates (exclusive fromDate, inclusive toDate)
+// Positive = deposited (adds to portfolio) → subtract from P&L
+// Negative = withdrawn (removes from portfolio) → add to P&L
+// P&L real = (total_final - total_initial) + withdrawals - deposits
+function transferUSDAdj(fromDate, toDate){
+  let adj = 0;
+  for(const op of ops){
+    // inclusive on both ends so same-day transfers are always caught
+    if(op.date < fromDate || op.date > toDate) continue;
+    if(op.type !== 'transfer') continue;
+    const tk = op.token; if(!tk) continue;
+    // Prefer stored USD value (recorded at time of transfer), fall back to current price
+    const usdVal = op.usd || (op.qty * tokPrice(tk));
+    if(op.subtype === 'out') adj += usdVal;   // withdrawal → add back to P&L
+    if(op.subtype === 'in')  adj -= usdVal;   // deposit → subtract from P&L
+  }
+  return adj;
+}
+
+// Returns token diff adjusted for transfers and wallet incorporations between two dates
+// So withdrawals to CEX, deposits from CEX, and new wallets don't show as P&L
+function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
+  const raw = tokenDiff(prevToks, curToks);
+
+  // Sum up transfers and incorporations between the two dates
+  const adjustments = {}; // token -> net adjustment to subtract from raw diff
+  for(const op of ops){
+    if(op.date < fromDate || op.date > toDate) continue;
+
+    if(op.type === 'transfer'){
+      const tk = op.token;
+      if(!tk) continue;
+      if(op.subtype === 'out'){
+        // Sent tokens out → real diff will show negative, we add back qty so it zeroes out
+        adjustments[tk] = (adjustments[tk]||0) + op.qty;
+      } else if(op.subtype === 'in'){
+        // Received tokens in (new wallet or deposit) → real diff shows positive, we subtract qty
+        adjustments[tk] = (adjustments[tk]||0) - op.qty;
+      }
+      // 'between' (internal transfer between own wallets) → no adjustment needed, net is zero
+    }
+  }
+
+  // Apply adjustments to raw diff
+  const adjusted = {...raw};
+  for(const [tk, adj] of Object.entries(adjustments)){
+    adjusted[tk] = (adjusted[tk]||0) + adj;
+    if(Math.abs(adjusted[tk]) < 0.000001) delete adjusted[tk];
+  }
+  return adjusted;
+}
+
 // RENDER WALLETS
 function renderWallets(){
   const list=document.getElementById('walletList');
@@ -661,8 +731,10 @@ function renderSummary(){
   const pnlDEl=document.getElementById('pnlDayUSD');
   const pnlDSub=document.getElementById('pnlDaySub');
   if(prev){
-    const d=tot-prev.total;const pct=prev.total?d/prev.total*100:null;
-    pnlDEl.textContent=fSign(d);pnlDEl.className='cval '+(d>=0?'pos':'neg');
+    const rawD=tot-prev.total;
+    const adjD=rawD+transferUSDAdj(prev.date,todayStr);
+    const pct=prev.total?adjD/prev.total*100:null;
+    pnlDEl.textContent=fSign(adjD);pnlDEl.className='cval '+(adjD>=0?'pos':'neg');
     pnlDSub.textContent=(pct?fPct(pct)+' · ':'')+`vs ${prev.date}`;
   }else{pnlDEl.textContent='—';pnlDEl.className='cval';pnlDSub.textContent='Guardá un snapshot';}
 
@@ -670,7 +742,7 @@ function renderSummary(){
   const cEl=document.getElementById('pnlDayCrypto');
   const cSub=document.getElementById('pnlDayCryptoSub');
   if(prev?.tokens){
-    const diff=tokenDiff(prev.tokens,toks);
+    const diff=adjustedTokenDiff(prev.tokens,toks,prev.date,today());
     const entries=Object.entries(diff).filter(([tk,v])=>Math.abs(v)>0.000001&&Math.abs(v*tokPrice(tk))>=5);
     if(entries.length){
       cEl.innerHTML=entries.map(([tk,v])=>{
@@ -716,11 +788,12 @@ function renderSummary(){
   const pnlMCSub=document.getElementById('pnlMonCryptoSub');
   if(mSnaps.length){
     const firstM=mSnaps[0];
-    const dM=tot-firstM.total;
+    const rawDM=tot-firstM.total;
+    const dM=rawDM+transferUSDAdj(firstM.date,todayStr);
     pnlMEl.textContent=fSign(dM);pnlMEl.className='cval '+(dM>=0?'pos':'neg');
     document.getElementById('pnlMonSub').textContent='desde '+firstM.date;
     if(firstM.tokens && pnlMCEl){
-      const mdiff=tokenDiff(firstM.tokens,toks);
+      const mdiff=adjustedTokenDiff(firstM.tokens,toks,firstM.date,today());
       const mentries=Object.entries(mdiff)
         .filter(([tk,v])=>Math.abs(v)>0.000001&&Math.abs(v*tokPrice(tk))>=5)
         .sort((a,b)=>Math.abs(b[1]*tokPrice(b[0]))-Math.abs(a[1]*tokPrice(a[0])));
@@ -746,7 +819,12 @@ function renderSummary(){
   const yStart=nowD.getFullYear()+'-01-01';
   const ySnaps=snapshots.filter(s=>s.date>=yStart).sort((a,b)=>a.date.localeCompare(b.date));
   const pnlYEl=document.getElementById('pnlYr');
-  if(ySnaps.length){const d=tot-ySnaps[0].total;pnlYEl.textContent=fSign(d);pnlYEl.className='cval '+(d>=0?'pos':'neg');document.getElementById('pnlYrSub').textContent='desde '+yStart;}
+  if(ySnaps.length){
+    const rawDY=tot-ySnaps[0].total;
+    const dY=rawDY+transferUSDAdj(ySnaps[0].date,todayStr);
+    pnlYEl.textContent=fSign(dY);pnlYEl.className='cval '+(dY>=0?'pos':'neg');
+    document.getElementById('pnlYrSub').textContent='desde '+yStart;
+  }
   else{pnlYEl.textContent='—';pnlYEl.className='cval';document.getElementById('pnlYrSub').textContent='sin snapshots este año';}
 
   // Realized
@@ -782,7 +860,8 @@ function renderHistory(){
 
   tbody.innerHTML=s.map((snap,i)=>{
     const prev=s[i+1]||null;
-    const pnl=prev?snap.total-prev.total:null;
+    const rawPnl=prev?snap.total-prev.total:null;
+    const pnl=rawPnl!=null?rawPnl+transferUSDAdj(prev.date,snap.date):null;
     const pct=prev&&prev.total?pnl/prev.total*100:null;
     const pos=pnl>=0;
     const t=snap.tokens||{};
@@ -828,12 +907,14 @@ function renderMonthly(){
   grid.innerHTML=data.map(({name,snps})=>{
     if(!snps.length)return`<div class="moncard"><div class="monname">${name}</div><div class="monval" style="color:var(--mut);font-size:14px">Sin datos</div></div>`;
     const first=snps[0];const last=snps[snps.length-1];
-    const pnl=snps.length>1?last.total-first.total:null;const pos=pnl>=0;
+    const rawPnlM=snps.length>1?last.total-first.total:null;
+    const pnl=rawPnlM!=null?rawPnlM+transferUSDAdj(first.date,last.date):null;
+    const pos=pnl>=0;
 
     // Token diff: last vs first snapshot of the month, only if >= $5
     let tokHTML='';
     if(snps.length>1&&first.tokens&&last.tokens){
-      const diff=tokenDiff(first.tokens,last.tokens);
+      const diff=adjustedTokenDiff(first.tokens,last.tokens,first.date,last.date);
       const entries=Object.entries(diff)
         .filter(([tk,v])=>Math.abs(v)>0.000001&&Math.abs(v*tokPrice(tk))>=5)
         .sort((a,b)=>Math.abs(b[1]*tokPrice(b[0]))-Math.abs(a[1]*tokPrice(a[0])));
@@ -888,13 +969,94 @@ function renderCharts(){
     document.getElementById('portfolioChart').parentElement.innerHTML='<div class="chart-hdr"><span class="chart-title">Evolución del Portfolio</span></div><div style="color:var(--mut);font-family:var(--mono);font-size:12px;padding:20px;text-align:center">Sin snapshots aún — guardá el primero hoy</div>';
     return;
   }
-  const labels=sorted.map(s=>s.date);const totals=sorted.map(s=>s.total);
+  const labels=sorted.map(s=>s.date);
+  const totals=sorted.map(s=>s.total);
+
+  // Rendimiento puro acumulado: starts at 0, adds daily P&L adjusted for transfers
+  // rendAccum[i] = rendAccum[i-1] + (total[i] - total[i-1]) + transferAdj(date[i-1], date[i])
+  const rendAccum=sorted.map((s,i)=>{
+    if(i===0) return 0;
+    const prev=sorted[i-1];
+    const rawChange=s.total-prev.total;
+    const adj=transferUSDAdj(prev.date,s.date);
+    return null; // placeholder, computed below
+  });
+  let cumRend=0;
+  const rendData=sorted.map((s,i)=>{
+    if(i===0){ cumRend=0; return 0; }
+    const prev=sorted[i-1];
+    const rawChange=s.total-prev.total;
+    const adj=transferUSDAdj(prev.date,s.date);
+    cumRend+=rawChange+adj;
+    return parseFloat(cumRend.toFixed(2));
+  });
+
   const ctx=document.getElementById('portfolioChart')?.getContext('2d');
   if(!ctx)return;
   if(portfolioChart)portfolioChart.destroy();
-  const chartData=chartMode==='total'?totals:sorted.map((s,i)=>i===0?0:s.total-sorted[i-1].total);
-  const chartColor=chartMode==='total'?'#00ff88':'#7c3aed';
-  portfolioChart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:chartMode==='total'?'Total USD':'P&L Diario',data:chartData,borderColor:chartColor,backgroundColor:chartColor+'22',borderWidth:2,fill:true,tension:.35,pointBackgroundColor:chartColor,pointRadius:3,pointHoverRadius:6}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'  '+fUSD(c.raw)}}},scales:{x:{ticks:{color:'#5a5a7a',font:{family:'Space Mono',size:10}},grid:{color:'#252535'}},y:{ticks:{color:'#5a5a7a',font:{family:'Space Mono',size:10},callback:v=>'$'+v.toLocaleString()},grid:{color:'#252535'}}}}});
+
+  let datasets=[];
+  if(chartMode==='both'){
+    datasets=[
+      {
+        label:'Portfolio Total (USD)',
+        data:totals,
+        borderColor:'#00ff88',
+        backgroundColor:'#00ff8811',
+        borderWidth:2,fill:false,tension:.35,
+        pointBackgroundColor:'#00ff88',pointRadius:2,pointHoverRadius:5,
+      },
+      {
+        label:'Rendimiento puro (sin depósitos/retiros)',
+        data:rendData,
+        borderColor:'#7c3aed',
+        backgroundColor:'#7c3aed11',
+        borderWidth:2,fill:false,tension:.35,
+        pointBackgroundColor:'#7c3aed',pointRadius:2,pointHoverRadius:5,
+        borderDash:[],
+      }
+    ];
+  } else if(chartMode==='total'){
+    datasets=[{
+      label:'Portfolio Total (USD)',data:totals,
+      borderColor:'#00ff88',backgroundColor:'#00ff8822',
+      borderWidth:2,fill:true,tension:.35,
+      pointBackgroundColor:'#00ff88',pointRadius:2,pointHoverRadius:5,
+    }];
+  } else {
+    // P&L diario ajustado
+    const dailyPnl=sorted.map((s,i)=>{
+      if(i===0)return 0;
+      const prev=sorted[i-1];
+      return parseFloat((s.total-prev.total+transferUSDAdj(prev.date,s.date)).toFixed(2));
+    });
+    datasets=[{
+      label:'P&L Diario',data:dailyPnl,
+      borderColor:'#7c3aed',backgroundColor:'#7c3aed22',
+      borderWidth:2,fill:true,tension:.35,
+      pointBackgroundColor:'#7c3aed',pointRadius:2,pointHoverRadius:5,
+    }];
+  }
+
+  portfolioChart=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets},
+    options:{
+      responsive:true,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{
+          display:chartMode==='both',
+          labels:{color:'#e8e8f0',font:{family:'Space Mono',size:10},padding:16,boxWidth:12}
+        },
+        tooltip:{callbacks:{label:c=>'  '+c.dataset.label+': '+fUSD(c.raw)}}
+      },
+      scales:{
+        x:{ticks:{color:'#5a5a7a',font:{family:'Space Mono',size:10}},grid:{color:'#252535'}},
+        y:{ticks:{color:'#5a5a7a',font:{family:'Space Mono',size:10},callback:v=>'$'+v.toLocaleString()},grid:{color:'#252535'}}
+      }
+    }
+  });
 
   // Donut
   const toks=aggregateTokens();
@@ -908,7 +1070,7 @@ function renderCharts(){
   distChart=new Chart(dctx,{type:'doughnut',data:{labels:dLabels,datasets:[{data:dData,backgroundColor:dLabels.map((_,i)=>dColors[i%dColors.length]),borderWidth:2,borderColor:'#111118'}]},options:{responsive:true,plugins:{legend:{labels:{color:'#e8e8f0',font:{family:'Space Mono',size:11},padding:16}},tooltip:{callbacks:{label:c=>'  '+c.label+': '+fUSD(c.raw)+' ('+((c.raw/dData.reduce((a,b)=>a+b,0))*100).toFixed(1)+'%)'}}}}});
 }
 
-function setChartMode(mode,el){chartMode=mode;document.querySelectorAll('.ctab').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderCharts();}
+function setChartMode(mode,el){chartMode=mode;document.querySelectorAll('.ctab').forEach(b=>b.classList.remove('active'));if(el)el.classList.add('active');renderCharts();}
 
 // SNAPSHOT
 function saveSnapshot(){
@@ -937,6 +1099,8 @@ function openModal(type,wid){
           <option value="evm_all">EVM — Todas las cadenas (ETH, BSC, Base, AVAX, MATIC)</option>
           <option value="sol">Solana</option>
           <option value="ton">TON</option>
+          <option value="hyper">HyperEVM (HYPE)</option>
+          <option value="mega">MegaETH</option>
           <option value="custom">Cadenas específicas...</option>
         </select>
       </div>
@@ -989,13 +1153,13 @@ function openModal(type,wid){
     const myWOpts=wallets.map(w=>{const chains=(w.chains||[w.chain]).map(c=>CHAINS[c]?.name||c).join(', ');return`<option value="${w.id}">${w.name||short(w.address)} (${chains})</option>`;}).join('');
     const extOpt='<option value="_ext">Wallet externa (otra persona / exchange)</option>';
     box.innerHTML=`<h2>⇄ Registrar Movimiento</h2>
-      <p class="note">Tanto las transferencias entre tus wallets como los movimientos a/desde wallets externas se registran <strong>sin afectar el P&L</strong>. El cambio de balance se detecta solo al comparar snapshots.</p>
+      <p class="note">Los movimientos registrados acá <strong>se descuentan automáticamente del P&L</strong>. Si retirás SOL a Binance, registralo acá y no va a aparecer como pérdida. Si depositás o agregás una wallet nueva, registralo y no va a aparecer como ganancia.</p>
       <div class="fg" style="margin-top:14px">
         <label class="flbl">Dirección del movimiento</label>
         <select class="fsel" id="mXDir" onchange="updXferDir()">
-          <option value="between">Entre mis wallets</option>
-          <option value="out">Envié a wallet externa (salida)</option>
-          <option value="in">Recibí de wallet externa (entrada)</option>
+          <option value="between">Entre mis wallets (sin efecto en P&L)</option>
+          <option value="out">Retiré a CEX / wallet externa → no cuenta como pérdida</option>
+          <option value="in">Deposité desde CEX / wallet externa → no cuenta como ganancia</option>
         </select>
       </div>
       <div id="mXBetweenWrap">
@@ -1017,10 +1181,13 @@ function openModal(type,wid){
         </div>
       </div>
       <div class="frow" style="margin-top:4px">
-        <div class="fg"><label class="flbl">Token</label><select class="fsel" id="mXTK">${ALL_TOKENS.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></div>
-        <div class="fg"><label class="flbl">Cantidad</label><input class="finp" id="mXQ" type="number" step="any" placeholder="0.00"></div>
+        <div class="fg"><label class="flbl">Token</label><select class="fsel" id="mXTK" onchange="updXferUSD()">${ALL_TOKENS.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></div>
+        <div class="fg"><label class="flbl">Cantidad</label><input class="finp" id="mXQ" type="number" step="any" placeholder="0.00" oninput="updXferUSD()"></div>
       </div>
-      <div class="fg"><label class="flbl">Motivo / Notas</label><input class="finp" id="mXN" placeholder="ej: retiro a exchange, pago a proveedor, recibí de amigo..."></div>
+      <div class="frow">
+        <div class="fg"><label class="flbl">USD aproximado</label><input class="finp" id="mXUSD" type="number" step="any" placeholder="se calcula solo"></div>
+        <div class="fg"><label class="flbl">Motivo / Notas</label><input class="finp" id="mXN" placeholder="ej: retiro a Binance..."></div>
+      </div>
       <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitTransfer()">Registrar</button></div>`;
     return;
   }
@@ -1076,10 +1243,13 @@ function submitAddWallet(){
   if(!addr){alert('Ingresá una dirección.');return;}
   if(wtype==='sol'&&addr.startsWith('0x')){alert('Las wallets Solana no usan 0x');return;}
   if(wtype==='ton'&&addr.startsWith('0x')){alert('Las wallets TON no usan 0x');return;}
-  if(wtype!=='sol'&&wtype!=='ton'&&!addr.startsWith('0x')){alert('Las wallets EVM deben empezar con 0x');return;}
+  const evmTypes=['eth','bsc','base','avax','matic','evm_all','custom','hyper','mega'];
+  if(evmTypes.includes(wtype)&&!addr.startsWith('0x')){alert('Las wallets EVM deben empezar con 0x');return;}
   let chains=[];
   if(wtype==='sol') chains=['sol'];
   else if(wtype==='ton') chains=['ton'];
+  else if(wtype==='hyper') chains=['hyper'];
+  else if(wtype==='mega') chains=['mega'];
   else if(wtype==='evm_all') chains=['eth','bsc','base','avax','matic'];
   else{
     const cbs=document.querySelectorAll('#mWChainsWrap input[type=checkbox]:checked');
@@ -1118,6 +1288,13 @@ function updXferDir(){
   document.getElementById('mXBetweenWrap').style.display=dir==='between'?'block':'none';
   document.getElementById('mXOutWrap').style.display=dir==='out'?'block':'none';
   document.getElementById('mXInWrap').style.display=dir==='in'?'block':'none';
+  updXferUSD();
+}
+function updXferUSD(){
+  const tk=document.getElementById('mXTK')?.value;
+  const qty=parseFloat(document.getElementById('mXQ')?.value||0);
+  const usdEl=document.getElementById('mXUSD');
+  if(usdEl&&tk&&qty) usdEl.value=(qty*tokPrice(tk)).toFixed(2);
 }
 
 function submitTransfer(){
@@ -1157,8 +1334,9 @@ function submitTransfer(){
   }
 
   const dirLabel={between:'Entre mis wallets',out:'Envío externo',in:'Recepción externa'};
+  const xferUSD=parseFloat(document.getElementById('mXUSD')?.value)||qty*tokPrice(tok);
   ops.push({
-    id:uid(),type:'transfer',date:today(),token:tok,qty,
+    id:uid(),type:'transfer',date:today(),token:tok,qty,usd:xferUSD,
     desc,walletName:fromName+'→'+toName,
     subtype:dir,dirLabel:dirLabel[dir]||'Transfer'
   });
@@ -1223,7 +1401,8 @@ async function refreshAll(){
   const dot=document.getElementById('statusDot');const upd=document.getElementById('lastUpd');
   dot.className='dot';upd.textContent='Actualizando...';
   await fetchPrices();
-  await Promise.all(wallets.map(fetchWallet));
+  // Sequential fetch to avoid rate limits on public RPCs
+  for(const w of wallets){ await fetchWallet(w); renderWallets(); }
   renderWallets();renderSummary();
   upd.textContent='Actualizado: '+new Date().toLocaleTimeString('es-AR');
   dot.className='dot live';
