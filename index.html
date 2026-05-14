@@ -337,7 +337,13 @@ const STABLE_CONTRACTS={
   base:{USDC:'0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'},
   avax:{USDT:'0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7',USDC:'0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E'},
   matic:{USDT:'0xc2132D05D31c914a87C6611C10748AEb04B58e8F',USDC:'0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'},
-  hyper:{USDC:'0x1Cd0cd01c8C902AdAb3430ae04b9ea32CB309CF1'},
+  hyper:{
+    USDC:'0x3061cAA1Ce7C018ce68Eae5795b2086cfdb4E148',  // Circle native USDC on HyperEVM
+    USDT:'0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb',  // USDT0 on HyperEVM
+  },
+  mega:{
+    USDC:'0x8D635c4702BA38b1F1735e8e784c7265Dcc0b623',  // Bronto USDC on MegaETH
+  },
 };
 const STABLE_DEC={eth:{USDT:6,USDC:6},bsc:{USDT:18,USDC:18,USD1:18},base:{USDC:6},avax:{USDT:6,USDC:6},matic:{USDT:6,USDC:6}};
 const RPCS={
@@ -346,8 +352,8 @@ const RPCS={
   base: ['https://mainnet.base.org','https://base.llamarpc.com','https://rpc.ankr.com/base'],
   avax: ['https://api.avax.network/ext/bc/C/rpc','https://rpc.ankr.com/avalanche','https://avax.llamarpc.com'],
   matic:['https://polygon.llamarpc.com','https://rpc.ankr.com/polygon','https://polygon-bor-rpc.publicnode.com'],
-  hyper:['https://rpc.hyperliquid.xyz/evm','https://rpc.hyperliquid-testnet.xyz/evm'],
-  mega: ['https://carrot.megaeth.com/rpc','https://mega.ethpandaops.io'],
+  hyper:['https://rpc.hyperliquid.xyz/evm'],
+  mega: ['https://mainnet.megaeth.com/rpc'],
 };
 
 // UTILS
