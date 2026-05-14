@@ -956,17 +956,18 @@ function renderOps(){
     const tm={realize:'tag-real',transfer:'tag-xfer',adjust:'tag-adj',ingreso:'tag-real'};
     const tl={realize:'Realizar',transfer:'Transfer',adjust:'Ajuste',ingreso:'Ingreso'};
     const subLabel=o.dirLabel||'';
+    const subHTML=subLabel?'<span style="font-size:9px;color:var(--mut);font-family:var(--mono);margin-left:4px">'+subLabel+'</span>':'';
     const qty=o.qty!=null?((o.qty>=0?'+':'')+fAmt(o.qty)+' '+o.token):'—';
-    return`<tr>
-      <td>${o.date}</td>
-      <td><span class="tag ${tm[o.type]||''}">${tl[o.type]||o.type}</span>${subLabel?`<span style="font-size:9px;color:var(--mut);font-family:var(--mono);margin-left:4px">${subLabel}</span>`:''}</td>
-      <td style="color:var(--mut);max-width:200px">${o.desc||'—'}</td>
-      <td>${o.token||'—'}</td>
-      <td class="${o.qty>=0?'pos':'neg'}">${qty}</td>
-      <td>${o.usd?fUSD(o.usd):'—'}</td>
-      <td style="color:var(--mut);font-size:11px">${o.walletName||'—'}</td>
-      <td><button class="icon-btn del" onclick="deleteOp('${o.id}')" title="Eliminar operación">✕</button></td>
-    </tr>`;
+    return'<tr>'
+      +'<td>'+o.date+'</td>'
+      +'<td><span class="tag '+(tm[o.type]||'')+'">'+( tl[o.type]||o.type)+'</span>'+subHTML+'</td>'
+      +'<td style="color:var(--mut);max-width:200px">'+(o.desc||'—')+'</td>'
+      +'<td>'+(o.token||'—')+'</td>'
+      +'<td class="'+(o.qty>=0?'pos':'neg')+'">'+qty+'</td>'
+      +'<td>'+(o.usd?fUSD(o.usd):'—')+'</td>'
+      +'<td style="color:var(--mut);font-size:11px">'+(o.walletName||'—')+'</td>'
+      +'<td><button class="icon-btn del" onclick="deleteOp(''+o.id+'')" title="Eliminar">✕</button></td>'
+      +'</tr>';
   }).join('');
 }
 
