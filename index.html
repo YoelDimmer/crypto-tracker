@@ -966,7 +966,7 @@ function renderOps(){
       +'<td class="'+(o.qty>=0?'pos':'neg')+'">'+qty+'</td>'
       +'<td>'+(o.usd?fUSD(o.usd):'—')+'</td>'
       +'<td style="color:var(--mut);font-size:11px">'+(o.walletName||'—')+'</td>'
-      +'<td><button class="icon-btn del" onclick="deleteOp(''+o.id+'')" title="Eliminar">✕</button></td>'
+      +'<td><button class="icon-btn del" onclick="deleteOp(&quot;'+o.id+'&quot;)" title="Eliminar">✕</button></td>'
       +'</tr>';
   }).join('');
 }
@@ -975,9 +975,7 @@ function deleteOp(id){
   const op = ops.find(o=>o.id===id);
   if(!op) return;
   const label = op.desc || (op.type+' '+op.token);
-  if(!confirm('¿Eliminar esta operación?
-
-'+label)) return;
+  if(!confirm('Eliminar esta operacion: '+label)) return;
   ops = ops.filter(o=>o.id!==id);
   localStorage.setItem('ct_ops', JSON.stringify(ops));
   renderOps();
