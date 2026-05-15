@@ -165,7 +165,20 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
   <div class="card"><div class="clbl">P&L Este Año</div><div class="cval" id="pnlYr">—</div><div class="csub" id="pnlYrSub">—</div></div>
-  <div class="card"><div class="clbl">Ganancias Realizadas</div><div class="cval pos" id="realized">$0.00</div><div class="csub" id="realizedSub">0 operaciones</div></div>
+  <div class="card" style="border-color:var(--acc)33">
+    <div class="clbl">Ganancias Realizadas</div>
+    <div class="cval pos" id="realized">$0.00</div>
+    <div class="csub" id="realizedSub">total acumulado</div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr)">
+      <div class="clbl" style="margin-bottom:4px">Este mes</div>
+      <div class="cval pos" id="realizedMon" style="font-size:18px">$0.00</div>
+      <div class="csub" id="realizedMonSub">—</div>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr)">
+      <div class="clbl" style="margin-bottom:4px">Tokens vendidos</div>
+      <div id="realizedToks" style="font-size:11px;font-family:var(--mono);line-height:1.8;color:var(--txt)">—</div>
+    </div>
+  </div>
   <div class="card" style="border-color:var(--acc2)33">
     <div class="clbl">Tokens Externos</div>
     <div id="ingresoMan" style="font-size:12px;font-family:var(--mono);line-height:1.9;margin-bottom:6px;color:var(--txt)">—</div>
@@ -241,17 +254,48 @@ tr:last-child td{border-bottom:none}
   <div class="sechdr">
     <span class="sectit">Operaciones</span>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-gho btn-sm" onclick="openModal('realize')">💰 Realizar Ganancia</button>
-      <button class="btn btn-gho btn-sm" onclick="openModal('ingreso')">💸 Ingreso Manual</button>
-      <button class="btn btn-gho btn-sm" onclick="openModal('adjust')">✏️ Ajuste Manual</button>
+      <button class="btn btn-pri btn-sm" onclick="openModal('sellwithdraw')">💸 Vender y Retirar</button>
+      <button class="btn btn-gho btn-sm" onclick="openModal('realize')">💰 Realizar</button>
       <button class="btn btn-gho btn-sm" onclick="openModal('transfer')">⇄ Transfer</button>
+      <button class="btn btn-gho btn-sm" onclick="openModal('ingreso')">💸 Ingreso</button>
+      <button class="btn btn-gho btn-sm" onclick="openModal('adjust')">✏️ Ajuste</button>
     </div>
   </div>
-  <div class="tbl-wrap">
-    <table>
-      <thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Token</th><th>Cantidad</th><th>USD</th><th>Wallet</th><th></th></tr></thead>
-      <tbody id="opsBody"><tr><td colspan="8" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr></tbody>
-    </table>
+  <!-- Sub-tabs -->
+  <div class="tabs" style="margin-bottom:14px">
+    <button class="tab active" id="opstab-ventas" onclick="showOpsTab('ventas')">💰 Ventas</button>
+    <button class="tab" id="opstab-transfers" onclick="showOpsTab('transfers')">⇄ Transfers</button>
+    <button class="tab" id="opstab-ajustes" onclick="showOpsTab('ajustes')">✏️ Ajustes e Ingresos</button>
+  </div>
+
+  <!-- VENTAS TAB -->
+  <div id="opspanel-ventas">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Token vendido</th><th>Cantidad</th><th>Recibido</th><th>USD</th><th>Wallet</th><th></th></tr></thead>
+        <tbody id="opsVentasBody"><tr><td colspan="7" style="text-align:center;padding:36px;color:var(--mut)">Sin ventas registradas</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TRANSFERS TAB -->
+  <div id="opspanel-transfers" style="display:none">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Dirección</th><th>Token</th><th>Cantidad</th><th>USD</th><th>Descripción</th><th>Wallet</th><th></th></tr></thead>
+        <tbody id="opsXferBody"><tr><td colspan="8" style="text-align:center;padding:36px;color:var(--mut)">Sin transfers registradas</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AJUSTES TAB -->
+  <div id="opspanel-ajustes" style="display:none">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Tipo</th><th>Token</th><th>Cantidad</th><th>USD</th><th>Descripción</th><th>Wallet</th><th></th></tr></thead>
+        <tbody id="opsAjustesBody"><tr><td colspan="8" style="text-align:center;padding:36px;color:var(--mut)">Sin ajustes registrados</td></tr></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -605,14 +649,22 @@ function tokenDiff(prevToks,curToks){
 function transferUSDAdj(fromDate, toDate){
   let adj = 0;
   for(const op of ops){
-    // inclusive on both ends so same-day transfers are always caught
     if(op.date < fromDate || op.date > toDate) continue;
-    if(op.type !== 'transfer') continue;
     const tk = op.token; if(!tk) continue;
-    // Prefer stored USD value (recorded at time of transfer), fall back to current price
-    const usdVal = op.usd || (op.qty * tokPrice(tk));
-    if(op.subtype === 'out') adj += usdVal;   // withdrawal → add back to P&L
-    if(op.subtype === 'in')  adj -= usdVal;   // deposit → subtract from P&L
+
+    if(op.type === 'transfer'){
+      // Prefer stored USD value (recorded at time of transfer), fall back to current price
+      const usdVal = op.usd || (op.qty * tokPrice(tk));
+      if(op.subtype === 'out') adj += usdVal;  // withdrawal → add back to P&L
+      if(op.subtype === 'in')  adj -= usdVal;  // deposit → subtract from P&L
+    }
+
+    if(op.type === 'realize'){
+      // Selling tokens → portfolio value drops by token value, gains stables
+      // Net USD effect is zero (sold X token, got Y stable of same value)
+      // But the raw total may differ due to price slippage — we don't adjust USD P&L
+      // Only token diff needs adjustment (handled in adjustedTokenDiff)
+    }
   }
   return adj;
 }
@@ -622,7 +674,7 @@ function transferUSDAdj(fromDate, toDate){
 function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
   const raw = tokenDiff(prevToks, curToks);
 
-  // Sum up transfers and incorporations between the two dates
+  // Sum up transfers and realize operations between the two dates
   const adjustments = {}; // token -> net adjustment to subtract from raw diff
   for(const op of ops){
     if(op.date < fromDate || op.date > toDate) continue;
@@ -631,13 +683,28 @@ function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
       const tk = op.token;
       if(!tk) continue;
       if(op.subtype === 'out'){
-        // Sent tokens out → real diff will show negative, we add back qty so it zeroes out
+        // Sent tokens out → diff shows negative, add back qty to zero it out
         adjustments[tk] = (adjustments[tk]||0) + op.qty;
       } else if(op.subtype === 'in'){
-        // Received tokens in (new wallet or deposit) → real diff shows positive, we subtract qty
+        // Received tokens in → diff shows positive, subtract qty to zero it out
         adjustments[tk] = (adjustments[tk]||0) - op.qty;
       }
-      // 'between' (internal transfer between own wallets) → no adjustment needed, net is zero
+      // 'between' → no adjustment, net is zero
+    }
+
+    if(op.type === 'realize'){
+      const tk = op.token;
+      if(!tk) continue;
+      // qty is negative (tokens sold), diff shows negative → add back abs(qty) to zero it out
+      // so selling 5 SOL doesn't show as -5 SOL loss
+      adjustments[tk] = (adjustments[tk]||0) + Math.abs(op.qty);
+      // Also: the stable received shows as +Y → subtract it so it doesn't show as gain
+      // (it's already accounted for in the realized gains card)
+      if(op.stable){
+        adjustments[op.stable] = (adjustments[op.stable]||0) - Math.abs(op.qty * (op.usd/Math.abs(op.qty)||1));
+        // Actually use the USD amount directly as stable qty (1:1 for stables)
+        adjustments[op.stable] = (adjustments[op.stable]||0) + Math.abs(op.usd||0) - Math.abs(op.usd||0);
+      }
     }
   }
 
@@ -838,7 +905,46 @@ function renderSummary(){
   const realOps=ops.filter(o=>o.type==='realize');
   const realTot=realOps.reduce((s,o)=>s+(o.usd||0),0);
   document.getElementById('realized').textContent=fUSD(realTot);
-  document.getElementById('realizedSub').textContent=realOps.length+' operaciones';
+  document.getElementById('realizedSub').textContent=realOps.length+' venta'+(realOps.length!==1?'s':'')+' · acumulado';
+
+  // This month realized
+  const nowDR=new Date();
+  const mStartR=nowDR.getFullYear()+'-'+String(nowDR.getMonth()+1).padStart(2,'0');
+  const realMonOps=realOps.filter(o=>o.date&&o.date.startsWith(mStartR));
+  const realMonTot=realMonOps.reduce((s,o)=>s+(o.usd||0),0);
+  const realMonEl=document.getElementById('realizedMon');
+  const realMonSub=document.getElementById('realizedMonSub');
+  if(realMonEl){
+    realMonEl.textContent=fUSD(realMonTot);
+    realMonSub.textContent=realMonOps.length+' venta'+(realMonOps.length!==1?'s':'')+' este mes';
+  }
+
+  // Token breakdown: per token sold → total qty sold + total USD received
+  const tokSold={};   // token -> {qty, usd}
+  const stableRecv={}; // stable -> total usd received
+  for(const op of realOps){
+    if(!op.token) continue;
+    if(!tokSold[op.token]) tokSold[op.token]={qty:0,usd:0};
+    tokSold[op.token].qty+=Math.abs(op.qty||0);
+    tokSold[op.token].usd+=(op.usd||0);
+    if(op.stable){
+      stableRecv[op.stable]=(stableRecv[op.stable]||0)+(op.usd||0);
+    }
+  }
+  const realToksEl=document.getElementById('realizedToks');
+  if(realToksEl){
+    const tokEntries=Object.entries(tokSold);
+    if(!tokEntries.length){
+      realToksEl.innerHTML='<span style="color:var(--mut)">Sin ventas registradas</span>';
+    } else {
+      realToksEl.innerHTML=tokEntries.map(([tk,v])=>{
+        const stableStr=Object.entries(stableRecv).map(([s,u])=>fUSD(u)+' '+s).join(' · ');
+        return'<span style="color:var(--yel)">-'+fAmt(v.qty,4)+' '+tk+'</span>'
+          +' <span style="color:var(--mut)">→</span>'
+          +' <span class="pos">+'+fUSD(v.usd)+'</span>';
+      }).join('<br>');
+    }
+  }
 }
 
 // RENDER HISTORY
@@ -1229,6 +1335,40 @@ function openModal(type,wid){
     return;
   }
 
+  if(type==='sellwithdraw'){
+    const wOpts=['<option value="">Sin wallet especifica</option>',...wallets.map(w=>{
+      const chains=(w.chains||[w.chain]).map(c=>CHAINS[c]?.name||c).join(', ');
+      return '<option value="'+w.id+'">'+( w.name||short(w.address))+' ('+chains+')</option>';
+    })].join('');
+    const tokOpts=NATIVES.map(t=>'<option value="'+t+'">'+t+'</option>').join('');
+    const stableOpts=['USDT','USDC','USD1'].map(t=>'<option value="'+t+'">'+t+'</option>').join('');
+    box.innerHTML='<h2>💸 Vender y Retirar al CEX</h2>'
+      +'<p class="note">Registra en un solo paso: la venta del token (no cuenta como perdida) y el retiro de la stable al CEX (no baja el P&L). El balance de la wallet se actualiza solo via RPC.</p>'
+      +'<div class="frow" style="margin-top:14px">'
+        +'<div class="fg"><label class="flbl">Token vendido</label>'
+          +'<select class="fsel" id="swTok" onchange="updSWUSD()">'+tokOpts+'</select></div>'
+        +'<div class="fg"><label class="flbl">Cantidad vendida</label>'
+          +'<input class="finp" id="swQty" type="number" step="any" placeholder="ej: 0.5" oninput="updSWUSD()"></div>'
+      +'</div>'
+      +'<div class="frow">'
+        +'<div class="fg"><label class="flbl">Stable recibida</label>'
+          +'<select class="fsel" id="swStable">'+stableOpts+'</select></div>'
+        +'<div class="fg"><label class="flbl">USD recibido</label>'
+          +'<input class="finp" id="swUSD" type="number" step="any" placeholder="se calcula solo"></div>'
+      +'</div>'
+      +'<div class="fg"><label class="flbl">Wallet de origen</label>'
+        +'<select class="fsel" id="swWallet">'+wOpts+'</select></div>'
+      +'<div class="fg"><label class="flbl">CEX / Destino</label>'
+        +'<input class="finp" id="swCEX" placeholder="ej: Binance, Kraken, Ledger..."></div>'
+      +'<div class="fg"><label class="flbl">Notas (opcional)</label>'
+        +'<input class="finp" id="swNote" placeholder="ej: toma de ganancias ETH"></div>'
+      +'<div class="macts">'
+        +'<button class="btn btn-gho" onclick="closeModal()">Cancelar</button>'
+        +'<button class="btn btn-pri" onclick="submitSellWithdraw()">Registrar</button>'
+      +'</div>';
+    return;
+  }
+
   if(type==='adjust'){
     const wOpts=['<option value="">Sin wallet específica</option>',...wallets.map(w=>`<option value="${w.id}">${w.name||short(w.address)}</option>`)].join('');
     box.innerHTML=`<h2>✏️ Ajuste Manual</h2>
@@ -1387,6 +1527,47 @@ function submitIngreso(){
   alert(`✓ Ingreso registrado: ${qty} ${tok} = ${fUSD(usd)}`);
 }
 
+function updSWUSD(){
+  const tk=document.getElementById('swTok')?.value;
+  const qty=parseFloat(document.getElementById('swQty')?.value||0);
+  const usdEl=document.getElementById('swUSD');
+  if(usdEl&&tk&&qty) usdEl.value=(qty*tokPrice(tk)).toFixed(2);
+}
+
+function submitSellWithdraw(){
+  const tok=document.getElementById('swTok').value;
+  const qty=parseFloat(document.getElementById('swQty').value);
+  const stable=document.getElementById('swStable').value;
+  const usd=parseFloat(document.getElementById('swUSD').value)||qty*tokPrice(tok);
+  const wid=document.getElementById('swWallet').value;
+  const cex=document.getElementById('swCEX').value.trim()||'CEX';
+  const note=document.getElementById('swNote').value.trim();
+  if(!qty||qty<=0){alert('Ingresa una cantidad valida.');return;}
+
+  const w=wid?wallets.find(x=>x.id===wid):null;
+  const wName=w?.name||short(w?.address||'')||'Manual';
+  const desc=note||(qty+' '+tok+' vendidos → '+stable+' → '+cex);
+  const d=today();
+
+  // Op 1: Realizar (venta de token → stable, no cuenta como perdida de tokens)
+  ops.push({
+    id:uid(),type:'realize',date:d,token:tok,qty:-qty,stable,usd,
+    desc:desc,walletName:wName,walletId:wid,isManual:false
+  });
+
+  // Op 2: Transfer salida (retiro de stable al CEX, no baja el P&L en USD)
+  ops.push({
+    id:uid(),type:'transfer',date:d,token:stable,qty:usd,usd:usd,
+    desc:'Retiro '+usd.toFixed(2)+' '+stable+' → '+cex,
+    walletName:wName+'→'+cex,
+    subtype:'out',dirLabel:'Envio externo'
+  });
+
+  localStorage.setItem('ct_ops',JSON.stringify(ops));
+  closeModal();renderSummary();renderOps();
+  alert('Registrado: venta de '+qty+' '+tok+' y retiro de '+usd.toFixed(2)+' '+stable+' a '+cex);
+}
+
 function submitAdjust(){
   const tok=document.getElementById('mAT').value;const qty=parseFloat(document.getElementById('mAQ').value);
   const note=document.getElementById('mAN').value.trim();const wid=document.getElementById('mAW').value;
@@ -1488,7 +1669,7 @@ function showTab(name){
   });
   if(name==='historial')renderHistory();
   if(name==='mensual')renderMonthly();
-  if(name==='ops')renderOps();
+  if(name==='ops'){renderOps();showOpsTab(currentOpsTab||'ventas');}
   if(name==='grafico')renderCharts();
 }
 
