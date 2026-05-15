@@ -825,19 +825,20 @@ function renderWallets(){
 
 function renderRichDiff(richDiff){
   const entries = Object.values(richDiff)
+    .filter(e => Math.abs(e.amount) > 0.000001)
     .sort((a,b) => Math.abs(b.amount*tokPrice(b.token)) - Math.abs(a.amount*tokPrice(a.token)));
-  if(!entries.length) return '<span style="color:var(--mut)">Sin cambios significativos</span>';
+  if(!entries.length) return '';
   return entries.map(e=>{
-    const usdVal = e.amount * tokPrice(e.token);
-    const usdStr = ' <span style="color:var(--mut);font-size:10px">('+( usdVal>=0?'+':'')+fUSD(Math.abs(usdVal))+')</span>';
+    const usdVal = Math.abs(e.amount * tokPrice(e.token));
+    const usdStr = usdVal >= 0.01 ? ' <span style="color:var(--mut);font-size:10px">('+( e.amount>=0?'+':'')+fUSD(usdVal)+')</span>' : '';
     const sign = e.amount >= 0 ? '+' : '';
-    const amt = sign + fAmt(Math.abs(e.amount), 4) + ' ' + e.token;
-    let color, prefix='';
-    if(e.kind === 'realized')  { color='var(--yel)'; prefix=''; }        // yellow = sold
-    else if(e.kind === 'stable_gain'){ color='var(--acc)'; prefix='+'; } // green = received stable
-    else if(e.kind === 'gain') { color='var(--acc)'; }                    // green = market gain
-    else                       { color='var(--red)'; }                    // red = market loss
-    return '<span style="color:'+color+'">'+(e.kind==='stable_gain'?'+':sign)+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
+    let color;
+    if(e.kind==='realized')    color='var(--yel)';
+    else if(e.kind==='stable_gain') color='var(--acc)';
+    else if(e.kind==='gain')   color='var(--acc)';
+    else                       color='var(--red)';
+    const displayAmt = (e.kind==='stable_gain'?'+':sign)+fAmt(Math.abs(e.amount),4)+' '+e.token;
+    return '<span style="color:'+color+'">'+displayAmt+'</span>'+usdStr;
   }).join('<br>');
 }
 // RENDER SUMMARY
@@ -1212,22 +1213,20 @@ function renderCharts(){
     return;
   }
   const labels=sorted.map(s=>s.date);
+  // Raw totals (what's actually in wallets at each snapshot)
   const totals=sorted.map(s=>s.total);
 
-  // Rendimiento puro acumulado: starts at 0, adds daily P&L adjusted for transfers
-  // rendAccum[i] = rendAccum[i-1] + (total[i] - total[i-1]) + transferAdj(date[i-1], date[i])
-  const rendAccum=sorted.map((s,i)=>{
-    if(i===0) return 0;
-    const prev=sorted[i-1];
-    const rawChange=s.total-prev.total;
-    const adj=transferUSDAdj(prev.date,s.date);
-    return null; // placeholder, computed below
-  });
+  // Rendimiento puro: starts at 0, accumulates only market P&L (excludes deposits/withdrawals/sales)
+  // Each day: market_pnl = (total_today - total_yesterday) + transfer_adj + realize_adj
+  // realize_adj: when you sell ETH→USDC and withdraw, total drops. We add back the withdrawal.
   let cumRend=0;
   const rendData=sorted.map((s,i)=>{
     if(i===0){ cumRend=0; return 0; }
     const prev=sorted[i-1];
     const rawChange=s.total-prev.total;
+    // transferUSDAdj already handles transfer out (+) and in (-)
+    // For realize ops: selling ETH→USDC is net zero in USD (value preserved)
+    // but if USDC is then withdrawn, transferUSDAdj adds it back
     const adj=transferUSDAdj(prev.date,s.date);
     cumRend+=rawChange+adj;
     return parseFloat(cumRend.toFixed(2));
