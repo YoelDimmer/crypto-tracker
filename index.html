@@ -269,7 +269,7 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <!-- VENTAS TAB -->
-  <div id="opspanel-ventas">
+  <div id="opspanel-ventas" style="display:none">
     <div class="tbl-wrap">
       <table>
         <thead><tr><th>Fecha</th><th>Token vendido</th><th>Cantidad</th><th>Recibido</th><th>USD</th><th>Wallet</th><th></th></tr></thead>
@@ -1058,12 +1058,14 @@ let currentOpsTab = 'ventas';
 
 function showOpsTab(tab){
   currentOpsTab = tab;
+  // Show/hide panels and update tab buttons
   ['ventas','transfers','ajustes'].forEach(t=>{
     const panel = document.getElementById('opspanel-'+t);
     if(panel) panel.style.display = t===tab?'block':'none';
     const btn = document.getElementById('opstab-'+t);
     if(btn) btn.className = 'tab'+(t===tab?' active':'');
   });
+  // Render AFTER panels are shown so DOM elements are accessible
   renderOps();
 }
 
@@ -1742,7 +1744,7 @@ function showTab(name){
   });
   if(name==='historial')renderHistory();
   if(name==='mensual')renderMonthly();
-  if(name==='ops'){ renderOps(); showOpsTab(currentOpsTab||'ventas'); }
+  if(name==='ops'){ showOpsTab(currentOpsTab||'ventas'); }
   if(name==='grafico')renderCharts();
 }
 
