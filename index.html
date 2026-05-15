@@ -648,22 +648,41 @@ function tokenDiff(prevToks,curToks){
 // P&L real = (total_final - total_initial) + withdrawals - deposits
 function transferUSDAdj(fromDate, toDate){
   let adj = 0;
+  // Collect realize amounts per date+stable to avoid double-counting
+  // When you sell ETH→USDC and withdraw USDC, the realize already captured the value drop
+  // so we should NOT add back the USDC withdrawal (it would double-count)
+  const realizeStables = {}; // 'date_stable' -> total USD realized into that stable
+  for(const op of ops){
+    if(op.date < fromDate || op.date > toDate) continue;
+    if(op.type === 'realize' && op.stable && op.usd){
+      const key = op.date+'_'+op.stable;
+      realizeStables[key] = (realizeStables[key]||0) + Math.abs(op.usd);
+    }
+  }
+
   for(const op of ops){
     if(op.date < fromDate || op.date > toDate) continue;
     const tk = op.token; if(!tk) continue;
-
-    if(op.type === 'transfer'){
-      // Prefer stored USD value (recorded at time of transfer), fall back to current price
-      const usdVal = op.usd || (op.qty * tokPrice(tk));
-      if(op.subtype === 'out') adj += usdVal;  // withdrawal → add back to P&L
-      if(op.subtype === 'in')  adj -= usdVal;  // deposit → subtract from P&L
+    if(op.type === 'transfer' && op.subtype === 'out'){
+      const usdVal = op.usd || (Math.abs(op.qty) * tokPrice(tk));
+      // Check if this withdrawal is a stable that came from a realize op same day
+      // If so, skip it — the realize already caused the portfolio drop
+      const realizeKey = op.date+'_'+tk;
+      const realizedAmt = realizeStables[realizeKey] || 0;
+      if(realizedAmt > 0 && STABLES.includes(tk)){
+        // This is a post-realize withdrawal — don't add back, it would inflate P&L
+        // Only add back the portion NOT covered by a realize
+        const excess = Math.max(0, usdVal - realizedAmt);
+        if(excess > 1) adj += excess;
+        // Reduce the realize pool so we don't skip legit unrelated withdrawals
+        realizeStables[realizeKey] = Math.max(0, realizedAmt - usdVal);
+      } else {
+        adj += usdVal; // Regular withdrawal → add back to P&L
+      }
     }
-
-    if(op.type === 'realize'){
-      // Selling tokens → portfolio value drops by token value, gains stables
-      // Net USD effect is zero (sold X token, got Y stable of same value)
-      // But the raw total may differ due to price slippage — we don't adjust USD P&L
-      // Only token diff needs adjustment (handled in adjustedTokenDiff)
+    if(op.type === 'transfer' && op.subtype === 'in'){
+      const usdVal = op.usd || (Math.abs(op.qty) * tokPrice(tk));
+      adj -= usdVal; // deposit → subtract from P&L
     }
   }
   return adj;
