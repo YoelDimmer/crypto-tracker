@@ -671,50 +671,81 @@ function transferUSDAdj(fromDate, toDate){
 
 // Returns token diff adjusted for transfers and wallet incorporations between two dates
 // So withdrawals to CEX, deposits from CEX, and new wallets don't show as P&L
+// Returns enriched diff: {token: {amount, kind}}
+// kind: 'gain' | 'loss' | 'realized' | 'transfer_out' | 'transfer_in' | 'stable_gain'
 function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
   const raw = tokenDiff(prevToks, curToks);
 
-  // Sum up transfers and realize operations between the two dates
-  const adjustments = {}; // token -> net adjustment to subtract from raw diff
+  // Collect ops in period
+  const realizedToks = {};   // token -> qty sold (positive)
+  const realizedStables = {}; // stable -> qty received (positive)
+  const xferOut = {};         // token -> qty transferred out
+  const xferIn  = {};         // token -> qty transferred in
+
   for(const op of ops){
     if(op.date < fromDate || op.date > toDate) continue;
-
-    if(op.type === 'transfer'){
-      const tk = op.token;
-      if(!tk) continue;
-      if(op.subtype === 'out'){
-        // Sent tokens out → diff shows negative, add back qty to zero it out
-        adjustments[tk] = (adjustments[tk]||0) + op.qty;
-      } else if(op.subtype === 'in'){
-        // Received tokens in → diff shows positive, subtract qty to zero it out
-        adjustments[tk] = (adjustments[tk]||0) - op.qty;
-      }
-      // 'between' → no adjustment, net is zero
-    }
-
+    const tk = op.token; if(!tk) continue;
     if(op.type === 'realize'){
-      const tk = op.token;
-      if(!tk) continue;
-      // qty is negative (tokens sold), diff shows negative → add back abs(qty) to zero it out
-      // so selling 5 SOL doesn't show as -5 SOL loss
-      adjustments[tk] = (adjustments[tk]||0) + Math.abs(op.qty);
-      // Also: the stable received shows as +Y → subtract it so it doesn't show as gain
-      // (it's already accounted for in the realized gains card)
-      if(op.stable){
-        adjustments[op.stable] = (adjustments[op.stable]||0) - Math.abs(op.qty * (op.usd/Math.abs(op.qty)||1));
-        // Actually use the USD amount directly as stable qty (1:1 for stables)
-        adjustments[op.stable] = (adjustments[op.stable]||0) + Math.abs(op.usd||0) - Math.abs(op.usd||0);
+      realizedToks[tk] = (realizedToks[tk]||0) + Math.abs(op.qty);
+      if(op.stable && op.usd){
+        realizedStables[op.stable] = (realizedStables[op.stable]||0) + Math.abs(op.usd);
       }
+    }
+    if(op.type === 'transfer'){
+      if(op.subtype === 'out') xferOut[tk] = (xferOut[tk]||0) + Math.abs(op.qty);
+      if(op.subtype === 'in')  xferIn[tk]  = (xferIn[tk]||0)  + Math.abs(op.qty);
     }
   }
 
-  // Apply adjustments to raw diff
-  const adjusted = {...raw};
-  for(const [tk, adj] of Object.entries(adjustments)){
-    adjusted[tk] = (adjusted[tk]||0) + adj;
-    if(Math.abs(adjusted[tk]) < 0.000001) delete adjusted[tk];
+  const result = {}; // token -> {amount, kind}
+
+  const allToks = new Set([
+    ...Object.keys(raw),
+    ...Object.keys(realizedToks),
+    ...Object.keys(realizedStables),
+    ...Object.keys(xferOut),
+    ...Object.keys(xferIn),
+  ]);
+
+  for(const tk of allToks){
+    const rawAmt  = raw[tk] || 0;
+    const sold    = realizedToks[tk]   || 0;
+    const xout    = xferOut[tk]        || 0;
+    const xin     = xferIn[tk]         || 0;
+    const stabIn  = realizedStables[tk]|| 0; // stable received from a sale
+
+    // Net real change (excluding sales and transfers)
+    const netChange = rawAmt + sold + xout - xin;
+
+    // Show sold tokens in yellow
+    if(sold > 0.000001){
+      const usdVal = sold * tokPrice(tk);
+      if(usdVal >= 5) result[tk+'_sold'] = {amount:-sold, kind:'realized', token:tk};
+    }
+    // Show stables received from sales in green (only if they actually changed)
+    if(stabIn > 0.000001 && rawAmt >= 0){
+      if(stabIn >= 5) result[tk+'_stablegain'] = {amount:stabIn, kind:'stable_gain', token:tk};
+    }
+    // Show transfers out (hidden — already in Transfer records)
+    // Show net real change (gain/loss from market)
+    if(Math.abs(netChange) > 0.000001 && Math.abs(netChange * tokPrice(tk)) >= 5){
+      result[tk] = {amount:netChange, kind:netChange>0?'gain':'loss', token:tk};
+    }
   }
-  return adjusted;
+
+  return result;
+}
+
+// Simple version for backward compat (returns plain {token: amount})
+function simpleAdjustedDiff(prevToks, curToks, fromDate, toDate){
+  const rich = adjustedTokenDiff(prevToks, curToks, fromDate, toDate);
+  const out = {};
+  for(const [key, v] of Object.entries(rich)){
+    const tk = v.token;
+    if(!out[tk]) out[tk] = 0;
+    out[tk] += v.amount;
+  }
+  return out;
 }
 
 // RENDER WALLETS
@@ -791,6 +822,24 @@ function renderWallets(){
   }).join('');
 }
 
+
+function renderRichDiff(richDiff){
+  const entries = Object.values(richDiff)
+    .sort((a,b) => Math.abs(b.amount*tokPrice(b.token)) - Math.abs(a.amount*tokPrice(a.token)));
+  if(!entries.length) return '<span style="color:var(--mut)">Sin cambios significativos</span>';
+  return entries.map(e=>{
+    const usdVal = e.amount * tokPrice(e.token);
+    const usdStr = ' <span style="color:var(--mut);font-size:10px">('+( usdVal>=0?'+':'')+fUSD(Math.abs(usdVal))+')</span>';
+    const sign = e.amount >= 0 ? '+' : '';
+    const amt = sign + fAmt(Math.abs(e.amount), 4) + ' ' + e.token;
+    let color, prefix='';
+    if(e.kind === 'realized')  { color='var(--yel)'; prefix=''; }        // yellow = sold
+    else if(e.kind === 'stable_gain'){ color='var(--acc)'; prefix='+'; } // green = received stable
+    else if(e.kind === 'gain') { color='var(--acc)'; }                    // green = market gain
+    else                       { color='var(--red)'; }                    // red = market loss
+    return '<span style="color:'+color+'">'+(e.kind==='stable_gain'?'+':sign)+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
+  }).join('<br>');
+}
 // RENDER SUMMARY
 function renderSummary(){
   const toks=aggregateTokens();const tot=calcUSD(toks);
@@ -1027,21 +1076,13 @@ function renderMonthly(){
     // Token diff: last vs first snapshot of the month, only if >= $5
     let tokHTML='';
     if(snps.length>1&&first.tokens&&last.tokens){
-      const diff=adjustedTokenDiff(first.tokens,last.tokens,first.date,last.date);
-      const entries=Object.entries(diff)
-        .filter(([tk,v])=>Math.abs(v)>0.000001&&Math.abs(v*tokPrice(tk))>=5)
-        .sort((a,b)=>Math.abs(b[1]*tokPrice(b[0]))-Math.abs(a[1]*tokPrice(a[0])));
-      if(entries.length){
-        tokHTML=`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr)">
-          <div style="font-size:9px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px">En Tokens</div>
-          <div style="font-size:11px;font-family:var(--mono);line-height:1.8">
-            ${entries.map(([tk,v])=>{
-              const usdVal=v*tokPrice(tk);
-              const usdStr=`<span style="color:var(--mut);font-size:10px"> (${usdVal>=0?'+':''}${fUSD(Math.abs(usdVal))})</span>`;
-              return`<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${fAmt(Math.abs(v),4)} ${tk}</span>${usdStr}`;
-            }).join('<br>')}
-          </div>
-        </div>`;
+      const mTabRichDiff=adjustedTokenDiff(first.tokens,last.tokens,first.date,last.date);
+      const mTabEntries=Object.values(mTabRichDiff);
+      if(mTabEntries.length){
+        tokHTML='<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr)">'
+          +'<div style="font-size:9px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px">En Tokens</div>'
+          +'<div style="font-size:11px;font-family:var(--mono);line-height:1.8">'+renderRichDiff(mTabRichDiff)+'</div>'
+          +'</div>';
       }
     }
 
