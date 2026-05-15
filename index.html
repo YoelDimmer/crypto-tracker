@@ -647,47 +647,72 @@ function tokenDiff(prevToks,curToks){
 // Negative = withdrawn (removes from portfolio) → add to P&L
 // P&L real = (total_final - total_initial) + withdrawals - deposits
 function transferUSDAdj(fromDate, toDate){
-  // Returns USD adjustment: adds back withdrawals, subtracts deposits
-  // So P&L is not affected by capital movements
+  // P&L adjustment for transfers
+  //
+  // ONLY transfers flagged 'profit_withdrawal' get special handling:
+  //   - Don't add back the value (stable already counted in realize)
+  //
+  // Normal transfers (out or in) → return zero adjustment, so the snapshot diff
+  // naturally reflects them as gains/losses in the affected token.
+  // The portfolio total will move accordingly.
   let adj = 0;
   for(const op of ops){
     if(op.date < fromDate || op.date > toDate) continue;
+    if(op.type !== 'transfer') continue;
+    if(!op.profit_withdrawal) continue;
     const tk = op.token; if(!tk) continue;
-    if(op.type === 'transfer'){
-      const usdVal = op.usd || (Math.abs(op.qty||0) * tokPrice(tk));
-      if(op.subtype === 'out') adj += usdVal;
-      if(op.subtype === 'in')  adj -= usdVal;
+    const usdVal = op.usd || (Math.abs(op.qty||0) * tokPrice(tk));
+    if(op.subtype === 'out'){
+      // Stables withdrawn that came from a realize: add back so realized gain stays in P&L
+      adj += usdVal;
     }
   }
   return adj;
 }
 
 // Returns enriched diff: {token: {amount, kind, token}}
-// kind: 'gain'(green) | 'loss'(red) | 'realized'(yellow - sold via realize op)
+// Classification rules:
+//   - Token went DOWN and there's a realize op (sale)     → YELLOW (sold, not lost)
+//   - Token went DOWN and there's a profit_withdrawal     → HIDE (capital out, already in realize)
+//   - Token went DOWN otherwise                            → RED (real loss or normal transfer out)
+//   - Token went UP otherwise                              → GREEN (real gain or normal transfer in)
 function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
   const raw = tokenDiff(prevToks, curToks);
-  const soldToks={}, xferOut={}, xferIn={};
+
+  const soldQty = {};
+  const profitOutQty = {};
   for(const op of ops){
     if(op.date < fromDate || op.date > toDate) continue;
     const tk = op.token; if(!tk) continue;
-    if(op.type==='realize') soldToks[tk]=(soldToks[tk]||0)+Math.abs(op.qty||0);
-    if(op.type==='transfer'){
-      if(op.subtype==='out') xferOut[tk]=(xferOut[tk]||0)+Math.abs(op.qty||0);
-      if(op.subtype==='in')  xferIn[tk] =(xferIn[tk] ||0)+Math.abs(op.qty||0);
+    if(op.type === 'realize'){
+      soldQty[tk] = (soldQty[tk]||0) + Math.abs(op.qty||0);
+    }
+    if(op.type === 'transfer' && op.subtype === 'out' && op.profit_withdrawal){
+      profitOutQty[tk] = (profitOutQty[tk]||0) + Math.abs(op.qty||0);
     }
   }
-  const result={};
-  for(const[tk,rawAmt]of Object.entries(raw)){
-    if(Math.abs(rawAmt)<0.000001) continue;
-    if(Math.abs(rawAmt*tokPrice(tk))<5) continue;
-    const sold=soldToks[tk]||0, xout=xferOut[tk]||0, xin=xferIn[tk]||0;
-    // Hide pure transfer movements
-    if(rawAmt<0 && xout>0 && sold===0) continue;
-    if(rawAmt>0 && xin >0 && sold===0) continue;
-    // Color: yellow if sold, green if gained, red if lost
-    const kind = rawAmt<0 && sold>0 ? 'realized' : rawAmt>0 ? 'gain' : 'loss';
-    result[tk]={amount:rawAmt, kind, token:tk};
+
+  const result = {};
+  for(const [tk, rawAmt] of Object.entries(raw)){
+    if(Math.abs(rawAmt) < 0.000001) continue;
+    if(Math.abs(rawAmt * tokPrice(tk)) < 5) continue;
+
+    const sold = soldQty[tk] || 0;
+    const profitOut = profitOutQty[tk] || 0;
+
+    if(rawAmt < 0 && sold > 0){
+      // Sold tokens → yellow (the diff is mostly explained by the sale)
+      result[tk] = {amount: rawAmt, kind: 'realized', token: tk};
+    } else if(rawAmt < 0 && profitOut > 0){
+      // Profit withdrawal (stable leaving wallet) → hide, already counted via realize
+      continue;
+    } else {
+      // Normal change: gain (green) or loss (red)
+      const kind = rawAmt > 0 ? 'gain' : 'loss';
+      result[tk] = {amount: rawAmt, kind, token: tk};
+    }
   }
+
   return result;
 }
 
@@ -1381,6 +1406,12 @@ function openModal(type,wid){
         <div class="fg"><label class="flbl">USD aproximado</label><input class="finp" id="mXUSD" type="number" step="any" placeholder="se calcula solo"></div>
         <div class="fg"><label class="flbl">Motivo / Notas</label><input class="finp" id="mXN" placeholder="ej: retiro a Binance..."></div>
       </div>
+      <div id="mXProfitWrap" style="display:none;background:var(--sur2);border:1px solid var(--yel)55;border-radius:8px;padding:10px 12px;margin-top:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+          <input type="checkbox" id="mXProfitWithdraw">
+          <span><strong style="color:var(--yel)">Retiro de ganancia</strong> — estoy sacando stables que ya conté como ganancia realizada (no las cuentes de vuelta en el P&L)</span>
+        </label>
+      </div>
       <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitTransfer()">Registrar</button></div>`;
     return;
   }
@@ -1515,6 +1546,8 @@ function updXferDir(){
   document.getElementById('mXBetweenWrap').style.display=dir==='between'?'block':'none';
   document.getElementById('mXOutWrap').style.display=dir==='out'?'block':'none';
   document.getElementById('mXInWrap').style.display=dir==='in'?'block':'none';
+  const profitWrap=document.getElementById('mXProfitWrap');
+  if(profitWrap) profitWrap.style.display=dir==='out'?'block':'none';
   updXferUSD();
 }
 function updXferUSD(){
@@ -1562,14 +1595,20 @@ function submitTransfer(){
 
   const dirLabel={between:'Entre mis wallets',out:'Envío externo',in:'Recepción externa'};
   const xferUSD=parseFloat(document.getElementById('mXUSD')?.value)||qty*tokPrice(tok);
+  const profitWithdraw = dir==='out' && document.getElementById('mXProfitWithdraw')?.checked;
   ops.push({
     id:uid(),type:'transfer',date:today(),token:tok,qty,usd:xferUSD,
     desc,walletName:fromName+'→'+toName,
-    subtype:dir,dirLabel:dirLabel[dir]||'Transfer'
+    subtype:dir,dirLabel:dirLabel[dir]||'Transfer',
+    profit_withdrawal:profitWithdraw||false
   });
   localStorage.setItem('ct_ops',JSON.stringify(ops));
-  closeModal();renderOps();
-  alert('✓ Movimiento registrado. No afecta el P&L.');
+  closeModal();renderOps();renderSummary();
+  if(profitWithdraw){
+    alert('✓ Retiro de ganancia registrado. No se vuelve a contar en el P&L.');
+  } else {
+    alert('✓ Movimiento registrado. No afecta el P&L.');
+  }
 }
 
 function updIngresoUSD(){
