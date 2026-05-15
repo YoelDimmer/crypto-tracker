@@ -1072,28 +1072,84 @@ function delBtn(id){
 }
 
 function renderOps(){
-  const tbody=document.getElementById('opsBody');
-  if(!ops.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr>';return;}
   const sorted=[...ops].sort((a,b)=>b.date.localeCompare(a.date));
-  tbody.innerHTML=sorted.map(o=>{
-    const tm={realize:'tag-real',transfer:'tag-xfer',adjust:'tag-adj',ingreso:'tag-real'};
-    const tl={realize:'Realizar',transfer:'Transfer',adjust:'Ajuste',ingreso:'Ingreso'};
-    const subLabel=o.dirLabel||'';
-    const subHTML=subLabel?'<span style="font-size:9px;color:var(--mut);font-family:var(--mono);margin-left:4px">'+subLabel+'</span>':'';
-    const qty=o.qty!=null?((o.qty>=0?'+':'')+fAmt(o.qty)+' '+o.token):'—';
-    return'<tr>'
-      +'<td>'+o.date+'</td>'
-      +'<td><span class="tag '+(tm[o.type]||'')+'">'+( tl[o.type]||o.type)+'</span>'+subHTML+'</td>'
-      +'<td style="color:var(--mut);max-width:200px">'+(o.desc||'—')+'</td>'
-      +'<td>'+(o.token||'—')+'</td>'
-      +'<td class="'+(o.qty>=0?'pos':'neg')+'">'+qty+'</td>'
-      +'<td>'+(o.usd?fUSD(o.usd):'—')+'</td>'
-      +'<td style="color:var(--mut);font-size:11px">'+(o.walletName||'—')+'</td>'
-      +'<td><button class="icon-btn del" onclick="deleteOp(&quot;'+o.id+'&quot;)" title="Eliminar">✕</button></td>'
-      +'</tr>';
-  }).join('');
-}
 
+  // ── VENTAS (realize) ──
+  const ventasBody=document.getElementById('opsVentasBody');
+  if(ventasBody){
+    const ventas=sorted.filter(o=>o.type==='realize');
+    if(!ventas.length){
+      ventasBody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:36px;color:var(--mut)">Sin ventas registradas</td></tr>';
+    } else {
+      ventasBody.innerHTML=ventas.map(o=>{
+        const qty=Math.abs(o.qty||0);
+        const stable=o.stable||'USD';
+        return '<tr>'
+          +'<td>'+o.date+'</td>'
+          +'<td style="color:var(--yel);font-family:var(--mono);font-weight:700">'+(o.token||'—')+'</td>'
+          +'<td style="color:var(--red);font-family:var(--mono)">-'+fAmt(qty,4)+'</td>'
+          +'<td style="color:var(--acc);font-family:var(--mono)">+'+fUSD(o.usd||0)+' '+stable+'</td>'
+          +'<td style="font-family:var(--mono)">'+(o.usd?fUSD(o.usd):'—')+'</td>'
+          +'<td style="color:var(--mut);font-size:11px">'+(o.walletName||'—')+'</td>'
+          +'<td>'+delBtn(o.id)+'</td>'
+          +'</tr>';
+      }).join('');
+    }
+  }
+
+  // ── TRANSFERS ──
+  const xferBody=document.getElementById('opsXferBody');
+  if(xferBody){
+    const xfers=sorted.filter(o=>o.type==='transfer');
+    if(!xfers.length){
+      xferBody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--mut)">Sin transfers registradas</td></tr>';
+    } else {
+      const dirMap={out:'Salida',in:'Entrada',between:'Interna'};
+      const dirColor={out:'var(--red)',in:'var(--acc)',between:'var(--mut)'};
+      xferBody.innerHTML=xfers.map(o=>{
+        const dir=dirMap[o.subtype]||o.dirLabel||'Transfer';
+        const col=dirColor[o.subtype]||'var(--mut)';
+        const qty=o.qty!=null?(o.qty>=0?'+':'')+fAmt(Math.abs(o.qty),4)+' '+(o.token||''):'—';
+        const isOut=o.subtype==='out';
+        return '<tr>'
+          +'<td>'+o.date+'</td>'
+          +'<td style="font-size:10px;font-family:var(--mono);color:'+col+'">'+dir+'</td>'
+          +'<td style="font-family:var(--mono)">'+(o.token||'—')+'</td>'
+          +'<td style="font-family:var(--mono);color:'+(isOut?'var(--red)':'var(--acc)')+'">'+qty+'</td>'
+          +'<td style="font-family:var(--mono)">'+(o.usd?fUSD(o.usd):'—')+'</td>'
+          +'<td style="color:var(--mut);max-width:180px;font-size:11px">'+(o.desc||'—')+'</td>'
+          +'<td style="color:var(--mut);font-size:11px">'+(o.walletName||'—')+'</td>'
+          +'<td>'+delBtn(o.id)+'</td>'
+          +'</tr>';
+      }).join('');
+    }
+  }
+
+  // ── AJUSTES E INGRESOS ──
+  const ajBody=document.getElementById('opsAjustesBody');
+  if(ajBody){
+    const ajustes=sorted.filter(o=>o.type==='adjust'||o.type==='ingreso');
+    if(!ajustes.length){
+      ajBody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--mut)">Sin ajustes registrados</td></tr>';
+    } else {
+      const tl={adjust:'Ajuste',ingreso:'Ingreso'};
+      const tm={adjust:'tag-adj',ingreso:'tag-real'};
+      ajBody.innerHTML=ajustes.map(o=>{
+        const qty=o.qty!=null?(o.qty>=0?'+':'')+fAmt(Math.abs(o.qty),4)+' '+(o.token||''):'—';
+        return '<tr>'
+          +'<td>'+o.date+'</td>'
+          +'<td><span class="tag '+(tm[o.type]||'')+'">'+(tl[o.type]||o.type)+'</span></td>'
+          +'<td style="font-family:var(--mono)">'+(o.token||'—')+'</td>'
+          +'<td class="'+(o.qty>=0?'pos':'neg')+'" style="font-family:var(--mono)">'+qty+'</td>'
+          +'<td style="font-family:var(--mono)">'+(o.usd?fUSD(o.usd):'—')+'</td>'
+          +'<td style="color:var(--mut);max-width:180px;font-size:11px">'+(o.desc||'—')+'</td>'
+          +'<td style="color:var(--mut);font-size:11px">'+(o.walletName||'—')+'</td>'
+          +'<td>'+delBtn(o.id)+'</td>'
+          +'</tr>';
+      }).join('');
+    }
+  }
+}
 function deleteOp(id){
   const op = ops.find(o=>o.id===id);
   if(!op) return;
