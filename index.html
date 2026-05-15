@@ -1054,6 +1054,23 @@ function renderMonthly(){
 }
 
 // RENDER OPS
+let currentOpsTab = 'ventas';
+
+function showOpsTab(tab){
+  currentOpsTab = tab;
+  ['ventas','transfers','ajustes'].forEach(t=>{
+    const panel = document.getElementById('opspanel-'+t);
+    if(panel) panel.style.display = t===tab?'block':'none';
+    const btn = document.getElementById('opstab-'+t);
+    if(btn) btn.className = 'tab'+(t===tab?' active':'');
+  });
+  renderOps();
+}
+
+function delBtn(id){
+  return '<button class="icon-btn del" onclick="deleteOp(this.dataset.id)" data-id="'+id+'" title="Eliminar">✕</button>';
+}
+
 function renderOps(){
   const tbody=document.getElementById('opsBody');
   if(!ops.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--mut)">Sin operaciones</td></tr>';return;}
@@ -1669,7 +1686,7 @@ function showTab(name){
   });
   if(name==='historial')renderHistory();
   if(name==='mensual')renderMonthly();
-  if(name==='ops'){renderOps();showOpsTab(currentOpsTab||'ventas');}
+  if(name==='ops'){ renderOps(); showOpsTab(currentOpsTab||'ventas'); }
   if(name==='grafico')renderCharts();
 }
 
