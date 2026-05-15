@@ -690,68 +690,50 @@ function transferUSDAdj(fromDate, toDate){
 
 // Returns token diff adjusted for transfers and wallet incorporations between two dates
 // So withdrawals to CEX, deposits from CEX, and new wallets don't show as P&L
-// Returns enriched diff: {token: {amount, kind}}
-// kind: 'gain' | 'loss' | 'realized' | 'transfer_out' | 'transfer_in' | 'stable_gain'
+// Returns enriched diff for display
+// Shows real snapshot diff, colored by context:
+// - token went down AND there's a realize op → yellow (sold, not lost)  
+// - token went down AND there's a transfer out → gray/hidden
+// - token went up → green (gained)
+// - token went down, no explanation → red (market loss)
 function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
   const raw = tokenDiff(prevToks, curToks);
 
-  // Collect ops in period
-  const realizedToks = {};   // token -> qty sold (positive)
-  const realizedStables = {}; // stable -> qty received (positive)
-  const xferOut = {};         // token -> qty transferred out
-  const xferIn  = {};         // token -> qty transferred in
+  // Collect ops context
+  const soldToks = {};    // token -> qty sold via realize
+  const xferOut  = {};    // token -> qty transferred out
+  const xferIn   = {};    // token -> qty transferred in
 
   for(const op of ops){
     if(op.date < fromDate || op.date > toDate) continue;
     const tk = op.token; if(!tk) continue;
-    if(op.type === 'realize'){
-      realizedToks[tk] = (realizedToks[tk]||0) + Math.abs(op.qty);
-      if(op.stable && op.usd){
-        realizedStables[op.stable] = (realizedStables[op.stable]||0) + Math.abs(op.usd);
-      }
-    }
+    if(op.type === 'realize') soldToks[tk] = (soldToks[tk]||0) + Math.abs(op.qty||0);
     if(op.type === 'transfer'){
-      if(op.subtype === 'out') xferOut[tk] = (xferOut[tk]||0) + Math.abs(op.qty);
-      if(op.subtype === 'in')  xferIn[tk]  = (xferIn[tk]||0)  + Math.abs(op.qty);
+      if(op.subtype === 'out') xferOut[tk] = (xferOut[tk]||0) + Math.abs(op.qty||0);
+      if(op.subtype === 'in')  xferIn[tk]  = (xferIn[tk]||0)  + Math.abs(op.qty||0);
     }
   }
 
-  const result = {}; // token -> {amount, kind}
+  const result = {};
+  for(const [tk, rawAmt] of Object.entries(raw)){
+    if(Math.abs(rawAmt) < 0.000001) continue;
+    if(Math.abs(rawAmt * tokPrice(tk)) < 5) continue;
 
-  const allToks = new Set([
-    ...Object.keys(raw),
-    ...Object.keys(realizedToks),
-    ...Object.keys(realizedStables),
-    ...Object.keys(xferOut),
-    ...Object.keys(xferIn),
-  ]);
+    const sold = soldToks[tk] || 0;
+    const xout = xferOut[tk]  || 0;
+    const xin  = xferIn[tk]   || 0;
 
-  for(const tk of allToks){
-    const rawAmt  = raw[tk] || 0;
-    const sold    = realizedToks[tk]   || 0;
-    const xout    = xferOut[tk]        || 0;
-    const xin     = xferIn[tk]         || 0;
-    const stabIn  = realizedStables[tk]|| 0; // stable received from a sale
+    let kind;
+    if(rawAmt < 0 && sold > 0)       kind = 'realized';     // yellow: sold
+    else if(rawAmt < 0 && xout > 0)  kind = 'transfer_out'; // hide
+    else if(rawAmt > 0 && xin  > 0)  kind = 'transfer_in';  // hide
+    else if(rawAmt > 0)              kind = 'gain';          // green
+    else                             kind = 'loss';          // red
 
-    // Net real change (excluding sales and transfers)
-    const netChange = rawAmt + sold + xout - xin;
+    if(kind === 'transfer_out' || kind === 'transfer_in') continue; // hide transfers
 
-    // Show sold tokens in yellow
-    if(sold > 0.000001){
-      const usdVal = sold * tokPrice(tk);
-      if(usdVal >= 5) result[tk+'_sold'] = {amount:-sold, kind:'realized', token:tk};
-    }
-    // Show stables received from sales in green (only if they actually changed)
-    if(stabIn > 0.000001 && rawAmt >= 0){
-      if(stabIn >= 5) result[tk+'_stablegain'] = {amount:stabIn, kind:'stable_gain', token:tk};
-    }
-    // Show transfers out (hidden — already in Transfer records)
-    // Show net real change (gain/loss from market)
-    if(Math.abs(netChange) > 0.000001 && Math.abs(netChange * tokPrice(tk)) >= 5){
-      result[tk] = {amount:netChange, kind:netChange>0?'gain':'loss', token:tk};
-    }
+    result[tk] = {amount: rawAmt, kind, token: tk};
   }
-
   return result;
 }
 
@@ -852,12 +834,10 @@ function renderRichDiff(richDiff){
     const usdStr = usdVal >= 0.01 ? ' <span style="color:var(--mut);font-size:10px">('+( e.amount>=0?'+':'')+fUSD(usdVal)+')</span>' : '';
     const sign = e.amount >= 0 ? '+' : '';
     let color;
-    if(e.kind==='realized')    color='var(--yel)';
-    else if(e.kind==='stable_gain') color='var(--acc)';
-    else if(e.kind==='gain')   color='var(--acc)';
-    else                       color='var(--red)';
-    const displayAmt = (e.kind==='stable_gain'?'+':sign)+fAmt(Math.abs(e.amount),4)+' '+e.token;
-    return '<span style="color:'+color+'">'+displayAmt+'</span>'+usdStr;
+    if(e.kind==='realized') color='var(--yel)';  // yellow: sold token
+    else if(e.kind==='gain') color='var(--acc)';  // green: market gain
+    else color='var(--red)';                       // red: market loss
+    return '<span style="color:'+color+'">'+sign+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
   }).join('<br>');
 }
 // RENDER SUMMARY
