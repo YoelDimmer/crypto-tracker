@@ -394,7 +394,7 @@ const RPCS={
   bsc:  ['https://bsc-dataseed.binance.org','https://bsc-dataseed1.defibit.io','https://rpc.ankr.com/bsc'],
   base: ['https://mainnet.base.org','https://base.llamarpc.com','https://rpc.ankr.com/base'],
   avax: ['https://api.avax.network/ext/bc/C/rpc','https://rpc.ankr.com/avalanche','https://avax.llamarpc.com'],
-  matic:['https://polygon.llamarpc.com','https://rpc.ankr.com/polygon','https://polygon-bor-rpc.publicnode.com'],
+  matic:['https://polygon-rpc.com','https://rpc.ankr.com/polygon','https://polygon-bor-rpc.publicnode.com'],
   hyper:['https://rpc.hyperliquid.xyz/evm'],
   mega: ['https://mainnet.megaeth.com/rpc'],
 };
@@ -715,7 +715,6 @@ function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
 }
 
 function renderRichDiff(richDiff){
-  console.log('[renderRichDiff] input:', JSON.stringify(richDiff));
   const entries=Object.values(richDiff)
     .filter(e=>Math.abs(e.amount)>0.000001)
     .sort((a,b)=>Math.abs(b.amount*tokPrice(b.token))-Math.abs(a.amount*tokPrice(a.token)));
@@ -730,7 +729,7 @@ function renderRichDiff(richDiff){
     else if(e.kind==='realized') color='var(--yel)';
     else if(e.kind==='gain')     color='var(--acc)';
     else if(e.kind==='loss')     color='var(--red)';
-    return '<span style="color:'+color+'">'+prefix+sign+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
+    return '<span style="color:'+color+'" data-kind="'+(e.kind||'unknown')+'">'+prefix+sign+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
   }).join('<br>');
 }
 
