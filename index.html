@@ -254,8 +254,7 @@ tr:last-child td{border-bottom:none}
   <div class="sechdr">
     <span class="sectit">Operaciones</span>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-pri btn-sm" onclick="openModal('sellwithdraw')">💸 Vender y Retirar</button>
-      <button class="btn btn-gho btn-sm" onclick="openModal('realize')">💰 Realizar</button>
+      <button class="btn btn-pri btn-sm" onclick="openModal('realize')">💰 Realizar Ganancia</button>
       <button class="btn btn-gho btn-sm" onclick="openModal('transfer')">⇄ Transfer</button>
       <button class="btn btn-gho btn-sm" onclick="openModal('ingreso')">💸 Ingreso</button>
       <button class="btn btn-gho btn-sm" onclick="openModal('adjust')">✏️ Ajuste</button>
@@ -724,7 +723,7 @@ function renderRichDiff(richDiff){
   return entries.map(e=>{
     const usdVal=Math.abs(e.amount*tokPrice(e.token));
     const usdStr=usdVal>=0.01?' <span style="color:var(--mut);font-size:10px">('+( e.amount>=0?'+':'')+fUSD(usdVal)+')</span>':'';
-    const sign=e.amount>=0?'+':'';
+    const sign=e.amount>=0?'+':'-';
     const color=e.kind==='realized'?'var(--yel)':e.kind==='gain'?'var(--acc)':'var(--red)';
     return '<span style="color:'+color+'">'+sign+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
   }).join('<br>');
@@ -1362,7 +1361,10 @@ function openModal(type,wid){
       </div>
       <div class="fg"><label class="flbl">Stable recibida</label>
         <select class="fsel" id="mRS"><option value="USDT">USDT</option><option value="USDC">USDC</option><option value="USD1">USD1</option></select></div>
-      <div class="fg"><label class="flbl">Notas</label><input class="finp" id="mRN" placeholder="ej: tomé ganancias de SOL"></div>
+      <div class="frow">
+        <div class="fg"><label class="flbl">Fecha</label><input class="finp" id="mRD" type="date" value="${today()}"></div>
+        <div class="fg"><label class="flbl">Notas</label><input class="finp" id="mRN" placeholder="ej: tomé ganancias de SOL"></div>
+      </div>
       <div class="macts"><button class="btn btn-gho" onclick="closeModal()">Cancelar</button><button class="btn btn-pri" onclick="submitRealize('${wid||''}')">Registrar</button></div>`;
     return;
   }
@@ -1406,6 +1408,7 @@ function openModal(type,wid){
         <div class="fg"><label class="flbl">USD aproximado</label><input class="finp" id="mXUSD" type="number" step="any" placeholder="se calcula solo"></div>
         <div class="fg"><label class="flbl">Motivo / Notas</label><input class="finp" id="mXN" placeholder="ej: retiro a Binance..."></div>
       </div>
+      <div class="fg"><label class="flbl">Fecha</label><input class="finp" id="mXD" type="date" value="${today()}"></div>
       <div id="mXProfitWrap" style="display:none;background:var(--sur2);border:1px solid var(--yel)55;border-radius:8px;padding:10px 12px;margin-top:8px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
           <input type="checkbox" id="mXProfitWithdraw">
@@ -1532,7 +1535,8 @@ function submitRealize(wid){
   const sel=document.getElementById('mRT');
   const isManual=sel?.selectedOptions[0]?.dataset?.manual==='1'||
     (!wid&&!NATIVES.includes(tok)&&!STABLES.includes(tok));
-  ops.push({id:uid(),type:'realize',date:today(),token:tok,qty:-qty,stable,usd,
+  const opDate=document.getElementById('mRD')?.value||today();
+  ops.push({id:uid(),type:'realize',date:opDate,token:tok,qty:-qty,stable,usd,
     desc:note||(fAmt(qty,4)+' '+tok+' → '+stable),
     walletName:w?.name||short(w?.address||'')||'Manual',
     walletId:wid,isManual});
@@ -1596,8 +1600,9 @@ function submitTransfer(){
   const dirLabel={between:'Entre mis wallets',out:'Envío externo',in:'Recepción externa'};
   const xferUSD=parseFloat(document.getElementById('mXUSD')?.value)||qty*tokPrice(tok);
   const profitWithdraw = dir==='out' && document.getElementById('mXProfitWithdraw')?.checked;
+  const xferDate=document.getElementById('mXD')?.value||today();
   ops.push({
-    id:uid(),type:'transfer',date:today(),token:tok,qty,usd:xferUSD,
+    id:uid(),type:'transfer',date:xferDate,token:tok,qty,usd:xferUSD,
     desc,walletName:fromName+'→'+toName,
     subtype:dir,dirLabel:dirLabel[dir]||'Transfer',
     profit_withdrawal:profitWithdraw||false
