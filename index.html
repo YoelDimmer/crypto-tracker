@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
-:root{--bg:#09090f;--sur:#111118;--sur2:#1a1a26;--bdr:#252535;--acc:#00ff88;--acc2:#7c3aed;--red:#ff3a5c;--yel:#f59e0b;--txt:#e8e8f0;--mut:#5a5a7a;--mono:'Space Mono',monospace;--disp:'Syne',sans-serif}
+:root{--bg:#09090f;--sur:#111118;--sur2:#1a1a26;--bdr:#252535;--acc:#00ff88;--acc2:#7c3aed;--red:#ff3a5c;--yel:#f59e0b;--pur:#c084fc;--txt:#e8e8f0;--mut:#5a5a7a;--mono:'Space Mono',monospace;--disp:'Syne',sans-serif}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--txt);font-family:var(--disp);min-height:100vh;overflow-x:hidden}
 body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,255,136,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
@@ -723,11 +723,12 @@ function renderRichDiff(richDiff){
     const usdVal=Math.abs(e.amount*tokPrice(e.token));
     const usdStr=usdVal>=0.01?' <span style="color:var(--mut);font-size:10px">('+( e.amount>=0?'+':'')+fUSD(usdVal)+')</span>':'';
     const sign=e.amount>=0?'+':'-';
-    let color, prefix='';
-    if(e.kind==='realized')      color='var(--yel)';
+    let color='var(--red)';
+    let prefix='';
+    if(e.kind==='withdrawn'){ color='var(--pur)'; prefix='💸 '; }
+    else if(e.kind==='realized') color='var(--yel)';
     else if(e.kind==='gain')     color='var(--acc)';
-    else if(e.kind==='withdrawn'){color='#b794f4'; prefix='💸 ';}
-    else                         color='var(--red)';
+    else if(e.kind==='loss')     color='var(--red)';
     return '<span style="color:'+color+'">'+prefix+sign+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
   }).join('<br>');
 }
@@ -991,7 +992,7 @@ function renderHistory(){
       diffHTML+='<br><span style="font-size:10px;color:'+color+';font-weight:700">'+sign+fAmt(Math.abs(entry.amount),4)+')</span>';
     }
     if(wEntry && Math.abs(wEntry.amount)>0.000001){
-      diffHTML+='<br><span style="font-size:10px;color:#b794f4;font-weight:700">💸 retiro +'+fAmt(wEntry.amount,4)+'</span>';
+      diffHTML+='<br><span style="font-size:10px;color:var(--pur);font-weight:700">💸 retiro +'+fAmt(wEntry.amount,4)+'</span>';
     }
     if(!diffHTML) return'<td style="font-family:var(--mono);font-size:12px">'+curStr+'</td>';
     return'<td style="font-family:var(--mono);font-size:12px">'+curStr+diffHTML+'</td>';
