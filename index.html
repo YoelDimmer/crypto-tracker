@@ -990,30 +990,15 @@ function renderHistory(){
     const t=snap.tokens||{};
     const stables=STABLES.reduce((a,tk)=>a+(t[tk]||0),0);
     const prevStables=prev?STABLES.reduce((a,tk)=>a+((prev.tokens||{})[tk]||0),0):null;
-    const stableDiffRaw=prevStables!=null?stables-prevStables:null;
-    // Calculate profit_withdrawal amount for stables in this period (between prev.date and snap.date)
-    let stableWithdrawn=0;
-    if(prev){
-      for(const op of ops){
-        if(op.date<prev.date||op.date>snap.date) continue;
-        if(op.type==='transfer'&&op.subtype==='out'&&op.profit_withdrawal&&STABLES.includes(op.token)){
-          stableWithdrawn+=op.usd||Math.abs(op.qty||0);
-        }
-      }
-    }
-    // Real market change in stables = raw diff + withdrawn (compensates for withdrawal)
-    const stableMarketDiff=stableDiffRaw!=null?stableDiffRaw+stableWithdrawn:null;
-    let stableHTML='<td style="font-family:var(--mono);font-size:12px">'+fUSD(stables);
-    if(stableWithdrawn>0.01){
-      stableHTML+='<br><span style="font-size:10px;color:var(--pur);font-weight:700">💸 -'+fUSD(stableWithdrawn)+' retiro</span>';
-    }
-    if(stableMarketDiff!=null&&Math.abs(stableMarketDiff)>0.01){
-      const col=stableMarketDiff>=0?'var(--acc)':'var(--red)';
-      const sign=stableMarketDiff>=0?'(+':'(';
-      stableHTML+='<br><span style="font-size:10px;color:'+col+';font-weight:700">'+sign+fUSD(Math.abs(stableMarketDiff))+')</span>';
-    }
-    stableHTML+='</td>';
-    const stableCell=stables>0?stableHTML:'<td style="color:var(--mut)">—</td>';
+    const stableDiff=prevStables!=null?stables-prevStables:null;
+    const stablePos=stableDiff>=0;
+    const stableCell=stables>0
+      ? `<td style="font-family:var(--mono);font-size:12px">${fUSD(stables)}${
+          stableDiff!=null&&Math.abs(stableDiff)>0.01
+            ?`<br><span style="font-size:10px;color:${stablePos?'var(--acc)':'var(--red)'};font-weight:700">${stablePos?'(+':'('}${fUSD(Math.abs(stableDiff))})</span>`
+            :''
+        }</td>`
+      : '<td style="color:var(--mut)">—</td>';
 
     return`<tr>
       <td style="font-family:var(--mono);font-size:12px">${snap.date}</td>
