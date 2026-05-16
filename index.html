@@ -809,22 +809,6 @@ function renderWallets(){
 }
 
 
-function renderRichDiff(richDiff){
-  const entries = Object.values(richDiff)
-    .filter(e => Math.abs(e.amount) > 0.000001)
-    .sort((a,b) => Math.abs(b.amount*tokPrice(b.token)) - Math.abs(a.amount*tokPrice(a.token)));
-  if(!entries.length) return '';
-  return entries.map(e=>{
-    const usdVal = Math.abs(e.amount * tokPrice(e.token));
-    const usdStr = usdVal >= 0.01 ? ' <span style="color:var(--mut);font-size:10px">('+( e.amount>=0?'+':'')+fUSD(usdVal)+')</span>' : '';
-    const sign = e.amount >= 0 ? '+' : '';
-    let color;
-    if(e.kind==='realized') color='var(--yel)';  // yellow: sold token
-    else if(e.kind==='gain') color='var(--acc)';  // green: market gain
-    else color='var(--red)';                       // red: market loss
-    return '<span style="color:'+color+'">'+sign+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
-  }).join('<br>');
-}
 // RENDER SUMMARY
 function renderSummary(){
   const toks=aggregateTokens();const tot=calcUSD(toks);
