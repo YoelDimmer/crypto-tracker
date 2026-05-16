@@ -646,14 +646,8 @@ function tokenDiff(prevToks,curToks){
 // Negative = withdrawn (removes from portfolio) → add to P&L
 // P&L real = (total_final - total_initial) + withdrawals - deposits
 function transferUSDAdj(fromDate, toDate){
-  // P&L adjustment for transfers
-  //
-  // ONLY transfers flagged 'profit_withdrawal' get special handling:
-  //   - Don't add back the value (stable already counted in realize)
-  //
-  // Normal transfers (out or in) → return zero adjustment, so the snapshot diff
-  // naturally reflects them as gains/losses in the affected token.
-  // The portfolio total will move accordingly.
+  // ONLY transfers flagged 'profit_withdrawal' get special USD handling:
+  //   - Stables withdrawn from a realized gain → add back so P&L keeps the profit
   let adj = 0;
   for(const op of ops){
     if(op.date < fromDate || op.date > toDate) continue;
@@ -661,25 +655,19 @@ function transferUSDAdj(fromDate, toDate){
     if(!op.profit_withdrawal) continue;
     const tk = op.token; if(!tk) continue;
     const usdVal = op.usd || (Math.abs(op.qty||0) * tokPrice(tk));
-    if(op.subtype === 'out'){
-      // Stables withdrawn that came from a realize: add back so realized gain stays in P&L
-      adj += usdVal;
-    }
+    if(op.subtype === 'out') adj += usdVal;
   }
   return adj;
 }
 
-// Returns enriched diff: {token: {amount, kind, token}}
-// Classification rules:
-//   - Token went DOWN and there's a realize op (sale)     → YELLOW (sold, not lost)
-//   - Token went DOWN and there's a profit_withdrawal     → HIDE (capital out, already in realize)
-//   - Token went DOWN otherwise                            → RED (real loss or normal transfer out)
-//   - Token went UP otherwise                              → GREEN (real gain or normal transfer in)
+// Returns enriched diff: {key: {amount, kind, token}}
+// kind: 'gain'(green) | 'loss'(red) | 'realized'(yellow - sold) | 'withdrawn'(purple - retired profit)
 function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
   const raw = tokenDiff(prevToks, curToks);
 
   const soldQty = {};
-  const profitOutQty = {};
+  const profitOutQty = {};   // stables retired as profit withdrawal
+  const profitOutUSD = {};   // same in USD
   for(const op of ops){
     if(op.date < fromDate || op.date > toDate) continue;
     const tk = op.token; if(!tk) continue;
@@ -688,10 +676,13 @@ function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
     }
     if(op.type === 'transfer' && op.subtype === 'out' && op.profit_withdrawal){
       profitOutQty[tk] = (profitOutQty[tk]||0) + Math.abs(op.qty||0);
+      profitOutUSD[tk] = (profitOutUSD[tk]||0) + (op.usd || Math.abs(op.qty||0)*tokPrice(tk));
     }
   }
 
   const result = {};
+
+  // Process snapshot diff
   for(const [tk, rawAmt] of Object.entries(raw)){
     if(Math.abs(rawAmt) < 0.000001) continue;
     if(Math.abs(rawAmt * tokPrice(tk)) < 5) continue;
@@ -700,16 +691,24 @@ function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
     const profitOut = profitOutQty[tk] || 0;
 
     if(rawAmt < 0 && sold > 0){
-      // Sold tokens → yellow (the diff is mostly explained by the sale)
+      // Sold tokens → yellow
       result[tk] = {amount: rawAmt, kind: 'realized', token: tk};
     } else if(rawAmt < 0 && profitOut > 0){
-      // Profit withdrawal (stable leaving wallet) → hide, already counted via realize
+      // Skip — handled below as withdrawn
       continue;
     } else {
-      // Normal change: gain (green) or loss (red)
       const kind = rawAmt > 0 ? 'gain' : 'loss';
       result[tk] = {amount: rawAmt, kind, token: tk};
     }
+  }
+
+  // Add 'withdrawn' entries for profit_withdrawal ops (show stables retired as ficticious gain)
+  for(const [tk, qty] of Object.entries(profitOutQty)){
+    if(qty < 0.000001) continue;
+    const usd = profitOutUSD[tk] || 0;
+    if(usd < 5) continue;
+    // Show as positive (you "gained" this profit, even if it left the wallet)
+    result[tk+'_withdrawn'] = {amount: qty, kind: 'withdrawn', token: tk};
   }
 
   return result;
@@ -724,8 +723,12 @@ function renderRichDiff(richDiff){
     const usdVal=Math.abs(e.amount*tokPrice(e.token));
     const usdStr=usdVal>=0.01?' <span style="color:var(--mut);font-size:10px">('+( e.amount>=0?'+':'')+fUSD(usdVal)+')</span>':'';
     const sign=e.amount>=0?'+':'-';
-    const color=e.kind==='realized'?'var(--yel)':e.kind==='gain'?'var(--acc)':'var(--red)';
-    return '<span style="color:'+color+'">'+sign+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
+    let color, prefix='';
+    if(e.kind==='realized')      color='var(--yel)';
+    else if(e.kind==='gain')     color='var(--acc)';
+    else if(e.kind==='withdrawn'){color='#b794f4'; prefix='💸 ';}
+    else                         color='var(--red)';
+    return '<span style="color:'+color+'">'+prefix+sign+fAmt(Math.abs(e.amount),4)+' '+e.token+'</span>'+usdStr;
   }).join('<br>');
 }
 
@@ -978,12 +981,20 @@ function renderHistory(){
     const curStr=fAmt(cur,4);
     if(!prev||!prev.tokens) return'<td style="font-family:var(--mono);font-size:12px">'+curStr+'</td>';
     const richDiff=adjustedTokenDiff(prev.tokens,snap.tokens||{},prev.date,snap.date);
+    // For 'withdrawn' entries we use the _withdrawn key
+    const wEntry=richDiff[tok+'_withdrawn'];
     const entry=richDiff[tok];
-    if(!entry||Math.abs(entry.amount)<0.000001) return'<td style="font-family:var(--mono);font-size:12px">'+curStr+'</td>';
-    const color=entry.kind==='realized'?'var(--yel)':entry.kind==='gain'?'var(--acc)':'var(--red)';
-    const sign=entry.amount>=0?'(+':'(';
-    return'<td style="font-family:var(--mono);font-size:12px">'+curStr
-      +'<br><span style="font-size:10px;color:'+color+';font-weight:700">'+sign+fAmt(Math.abs(entry.amount),4)+')</span></td>';
+    let diffHTML='';
+    if(entry && Math.abs(entry.amount)>0.000001){
+      const color=entry.kind==='realized'?'var(--yel)':entry.kind==='gain'?'var(--acc)':'var(--red)';
+      const sign=entry.amount>=0?'(+':'(';
+      diffHTML+='<br><span style="font-size:10px;color:'+color+';font-weight:700">'+sign+fAmt(Math.abs(entry.amount),4)+')</span>';
+    }
+    if(wEntry && Math.abs(wEntry.amount)>0.000001){
+      diffHTML+='<br><span style="font-size:10px;color:#b794f4;font-weight:700">💸 retiro +'+fAmt(wEntry.amount,4)+'</span>';
+    }
+    if(!diffHTML) return'<td style="font-family:var(--mono);font-size:12px">'+curStr+'</td>';
+    return'<td style="font-family:var(--mono);font-size:12px">'+curStr+diffHTML+'</td>';
   }
   tbody.innerHTML=s.map((snap,i)=>{
     const prev=s[i+1]||null;
