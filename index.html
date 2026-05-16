@@ -715,6 +715,7 @@ function adjustedTokenDiff(prevToks, curToks, fromDate, toDate){
 }
 
 function renderRichDiff(richDiff){
+  console.log('[renderRichDiff] input:', JSON.stringify(richDiff));
   const entries=Object.values(richDiff)
     .filter(e=>Math.abs(e.amount)>0.000001)
     .sort((a,b)=>Math.abs(b.amount*tokPrice(b.token))-Math.abs(a.amount*tokPrice(a.token)));
