@@ -57,6 +57,8 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
 .cton{background:#0088cc22;color:#40b3e0;border:1px solid #0088cc55}
 .chyper{background:#00e5ff22;color:#00e5ff;border:1px solid #00e5ff55}
 .cmega{background:#ff6b3522;color:#ff9a70;border:1px solid #ff6b3555}
+.carb{background:#28a0f022;color:#28a0f0;border:1px solid #28a0f055}
+.crhc{background:#00c80522;color:#00e57e;border:1px solid #00c80555}
 .wname{font-size:14px;font-weight:700}
 .waddr{font-family:var(--mono);font-size:10px;color:var(--mut)}
 .wbody{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
@@ -358,6 +360,8 @@ const CHAINS={
   ton:{name:'TON',sym:'TON',id:'the-open-network',cls:'cton',evm:false},
   hyper:{name:'HyperEVM',sym:'HYPE',id:'hyperliquid',cls:'chyper',evm:true},
   mega:{name:'MegaETH',sym:'ETH',id:'ethereum',cls:'cmega',evm:true},
+  arb:{name:'Arbitrum',sym:'ETH',id:'ethereum',cls:'carb',evm:true},
+  rhc:{name:'Robinhood Chain',sym:'ETH',id:'ethereum',cls:'crhc',evm:true},
 };
 const STABLES=['USDT','USDC','USD1','DAI','BUSD'];
 // Chain accent colors for token badges
@@ -371,6 +375,8 @@ const CHAIN_COLORS={
   ton:  {bg:'#0088cc22',color:'#40b3e0',label:'TON'},
   hyper:{bg:'#00e5ff22',color:'#00e5ff',label:'HYPE'},
   mega: {bg:'#ff6b3522',color:'#ff9a70',label:'MEGA'},
+  arb:  {bg:'#28a0f022',color:'#28a0f0',label:'ARB'},
+  rhc:  {bg:'#00c80522',color:'#00e57e',label:'RHC'},
 };
 const NATIVES=['ETH','SOL','BNB','AVAX','MATIC','TON','HYPE'];
 const ALL_TOKENS=[...NATIVES,...STABLES];
@@ -387,6 +393,11 @@ const STABLE_CONTRACTS={
   mega:{
     USDC:'0x8D635c4702BA38b1F1735e8e784c7265Dcc0b623',  // Bronto USDC on MegaETH
   },
+  arb:{
+    USDC:'0xaf88d065e77c8cc2239327c5edb3a432268e5831',  // Native USDC on Arbitrum
+    USDT:'0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',  // USDT0 on Arbitrum
+  },
+  rhc:{},  // No known stables yet on Robinhood Chain mainnet
 };
 const STABLE_DEC={eth:{USDT:6,USDC:6},bsc:{USDT:18,USDC:18,USD1:18},base:{USDC:6},avax:{USDT:6,USDC:6},matic:{USDT:6,USDC:6}};
 const RPCS={
@@ -397,6 +408,8 @@ const RPCS={
   matic:['https://polygon-rpc.com','https://rpc.ankr.com/polygon','https://polygon-bor-rpc.publicnode.com'],
   hyper:['https://rpc.hyperliquid.xyz/evm'],
   mega: ['https://mainnet.megaeth.com/rpc'],
+  arb:  ['https://arb1.arbitrum.io/rpc','https://arbitrum-one.publicnode.com','https://arbitrum.llamarpc.com'],
+  rhc:  ['https://rpc.mainnet.chain.robinhood.com'],
 };
 
 // UTILS
@@ -1302,6 +1315,8 @@ function openModal(type,wid){
           <option value="ton">TON</option>
           <option value="hyper">HyperEVM (HYPE)</option>
           <option value="mega">MegaETH</option>
+          <option value="arb">Arbitrum</option>
+          <option value="rhc">Robinhood Chain</option>
           <option value="custom">Cadenas específicas...</option>
         </select>
       </div>
@@ -1488,13 +1503,15 @@ function submitAddWallet(){
   if(!addr){alert('Ingresá una dirección.');return;}
   if(wtype==='sol'&&addr.startsWith('0x')){alert('Las wallets Solana no usan 0x');return;}
   if(wtype==='ton'&&addr.startsWith('0x')){alert('Las wallets TON no usan 0x');return;}
-  const evmTypes=['eth','bsc','base','avax','matic','evm_all','custom','hyper','mega'];
+  const evmTypes=['eth','bsc','base','avax','matic','evm_all','custom','hyper','mega','arb','rhc'];
   if(evmTypes.includes(wtype)&&!addr.startsWith('0x')){alert('Las wallets EVM deben empezar con 0x');return;}
   let chains=[];
   if(wtype==='sol') chains=['sol'];
   else if(wtype==='ton') chains=['ton'];
   else if(wtype==='hyper') chains=['hyper'];
   else if(wtype==='mega') chains=['mega'];
+  else if(wtype==='arb') chains=['arb'];
+  else if(wtype==='rhc') chains=['rhc'];
   else if(wtype==='evm_all') chains=['eth','bsc','base','avax','matic'];
   else{
     const cbs=document.querySelectorAll('#mWChainsWrap input[type=checkbox]:checked');
@@ -1687,6 +1704,8 @@ function openEditWallet(id){
     {id:'ton',  label:'TON'},
     {id:'hyper',label:'HyperEVM (HYPE)'},
     {id:'mega', label:'MegaETH (ETH)'},
+    {id:'arb',  label:'Arbitrum (ETH)'},
+    {id:'rhc',  label:'Robinhood Chain (ETH)'},
   ];
   const isSolLike = currentChains.some(c=>['sol','ton'].includes(c));
 
