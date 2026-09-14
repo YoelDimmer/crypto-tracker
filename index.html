@@ -59,6 +59,7 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
 .cmega{background:#ff6b3522;color:#ff9a70;border:1px solid #ff6b3555}
 .carb{background:#28a0f022;color:#28a0f0;border:1px solid #28a0f055}
 .crhc{background:#00c80522;color:#00e57e;border:1px solid #00c80555}
+.cink{background:#7132f522;color:#a78bfa;border:1px solid #7132f555}
 .wname{font-size:14px;font-weight:700}
 .waddr{font-family:var(--mono);font-size:10px;color:var(--mut)}
 .wbody{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
@@ -362,6 +363,7 @@ const CHAINS={
   mega:{name:'MegaETH',sym:'ETH',id:'ethereum',cls:'cmega',evm:true},
   arb:{name:'Arbitrum',sym:'ETH',id:'ethereum',cls:'carb',evm:true},
   rhc:{name:'Robinhood Chain',sym:'ETH',id:'ethereum',cls:'crhc',evm:true},
+  ink:{name:'Ink',sym:'ETH',id:'ethereum',cls:'cink',evm:true},
 };
 const STABLES=['USDT','USDC','USD1','DAI','BUSD','USDG'];
 // Chain accent colors for token badges
@@ -377,6 +379,7 @@ const CHAIN_COLORS={
   mega: {bg:'#ff6b3522',color:'#ff9a70',label:'MEGA'},
   arb:  {bg:'#28a0f022',color:'#28a0f0',label:'ARB'},
   rhc:  {bg:'#00c80522',color:'#00e57e',label:'RHC'},
+  ink:  {bg:'#7132f522',color:'#a78bfa',label:'INK'},
 };
 const NATIVES=['ETH','SOL','BNB','AVAX','MATIC','TON','HYPE'];
 const ALL_TOKENS=[...NATIVES,...STABLES];
@@ -398,8 +401,13 @@ const STABLE_CONTRACTS={
     USDT:'0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',  // USDT0 on Arbitrum
   },
   rhc:{USDG:'0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168'},  // USDG (Global Dollar) on Robinhood Chain
+  ink:{
+    USDC:'0x2B51Ae4412F79c3c1cB12AA40Ea4ECEb4e80511a',  // Circle native USDC on Ink
+    USDT:'0x0200C29006150606B650577BBE7B6248F58470c1',  // USDT0 on Ink
+    USDG:'0xe343167631d89B6Ffc58B88d6b7fB0228795491D',  // USDG on Ink (same as Ethereum)
+  },
 };
-const STABLE_DEC={eth:{USDT:6,USDC:6,USDG:6},bsc:{USDT:18,USDC:18,USD1:18},base:{USDC:6},avax:{USDT:6,USDC:6},matic:{USDT:6,USDC:6},hyper:{USDC:6,USDT:6},mega:{USDC:6},arb:{USDC:6,USDT:6},rhc:{USDG:6}};
+const STABLE_DEC={eth:{USDT:6,USDC:6,USDG:6},bsc:{USDT:18,USDC:18,USD1:18},base:{USDC:6},avax:{USDT:6,USDC:6},matic:{USDT:6,USDC:6},hyper:{USDC:6,USDT:6},mega:{USDC:6},arb:{USDC:6,USDT:6},rhc:{USDG:6},ink:{USDC:6,USDT:6,USDG:6}};
 const RPCS={
   eth:  ['https://ethereum.publicnode.com','https://rpc.ankr.com/eth','https://eth.llamarpc.com'],
   bsc:  ['https://bsc-dataseed.binance.org','https://bsc-dataseed1.defibit.io','https://rpc.ankr.com/bsc'],
@@ -410,6 +418,7 @@ const RPCS={
   mega: ['https://mainnet.megaeth.com/rpc'],
   arb:  ['https://arb1.arbitrum.io/rpc','https://arbitrum-one.publicnode.com','https://arbitrum.llamarpc.com'],
   rhc:  ['https://rpc.mainnet.chain.robinhood.com'],
+  ink:  ['https://rpc-gel.inkonchain.com','https://rpc-qnd.inkonchain.com'],
 };
 
 // UTILS
@@ -1319,6 +1328,7 @@ function openModal(type,wid){
           <option value="mega">MegaETH</option>
           <option value="arb">Arbitrum</option>
           <option value="rhc">Robinhood Chain</option>
+          <option value="ink">Ink</option>
           <option value="custom">Cadenas específicas...</option>
         </select>
       </div>
@@ -1505,7 +1515,7 @@ function submitAddWallet(){
   if(!addr){alert('Ingresá una dirección.');return;}
   if(wtype==='sol'&&addr.startsWith('0x')){alert('Las wallets Solana no usan 0x');return;}
   if(wtype==='ton'&&addr.startsWith('0x')){alert('Las wallets TON no usan 0x');return;}
-  const evmTypes=['eth','bsc','base','avax','matic','evm_all','custom','hyper','mega','arb','rhc'];
+  const evmTypes=['eth','bsc','base','avax','matic','evm_all','custom','hyper','mega','arb','rhc','ink'];
   if(evmTypes.includes(wtype)&&!addr.startsWith('0x')){alert('Las wallets EVM deben empezar con 0x');return;}
   let chains=[];
   if(wtype==='sol') chains=['sol'];
@@ -1514,6 +1524,7 @@ function submitAddWallet(){
   else if(wtype==='mega') chains=['mega'];
   else if(wtype==='arb') chains=['arb'];
   else if(wtype==='rhc') chains=['rhc'];
+  else if(wtype==='ink') chains=['ink'];
   else if(wtype==='evm_all') chains=['eth','bsc','base','avax','matic'];
   else{
     const cbs=document.querySelectorAll('#mWChainsWrap input[type=checkbox]:checked');
@@ -1708,6 +1719,7 @@ function openEditWallet(id){
     {id:'mega', label:'MegaETH (ETH)'},
     {id:'arb',  label:'Arbitrum (ETH)'},
     {id:'rhc',  label:'Robinhood Chain (ETH)'},
+    {id:'ink',  label:'Ink (ETH)'},
   ];
   const isSolLike = currentChains.some(c=>['sol','ton'].includes(c));
 
