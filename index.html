@@ -433,17 +433,49 @@ const tokPrice=t=>STABLES.includes(t)?1:(prices[t]||0);
 
 // PRICES
 async function fetchPrices(){
+  // Try Binance first (CORS-friendly, no API key needed)
+  const binanceMap = {ETH:'ETHUSDT',SOL:'SOLUSDT',BNB:'BNBUSDT',AVAX:'AVAXUSDT',MATIC:'POLUSDT',TON:'TONUSDT',HYPE:'HYPEUSDT'};
+  const stableDefaults = {USDT:1,USDC:1,USD1:1,DAI:1,BUSD:1,USDG:1};
+  let ok=false;
   try{
-    const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana,binancecoin,avalanche-2,matic-network,the-open-network,hyperliquid&vs_currencies=usd&include_24hr_change=true');
-    const d=await r.json();
-    prices={ETH:d.ethereum?.usd,SOL:d.solana?.usd,BNB:d.binancecoin?.usd,AVAX:d['avalanche-2']?.usd,MATIC:d['matic-network']?.usd,TON:d['the-open-network']?.usd,HYPE:d['hyperliquid']?.usd,USDT:1,USDC:1,USD1:1,DAI:1,BUSD:1};
-    const tkns=[{id:'ethereum',s:'ETH'},{id:'solana',s:'SOL'},{id:'binancecoin',s:'BNB'},{id:'avalanche-2',s:'AVAX'},{id:'matic-network',s:'MATIC'},{id:'the-open-network',s:'TON'},{id:'hyperliquid',s:'HYPE'}];
-    document.getElementById('pricesBar').innerHTML=tkns.map(t=>{
-      const x=d[t.id];if(!x)return'';
-      const c=(x.usd_24h_change||0).toFixed(2);const pos=c>=0;
-      return`<div class="pc"><span class="sym">${t.s}</span><span class="prc">${fUSD(x.usd)}</span><span class="chg ${pos?'pos':'neg'}">${pos?'+':''}${c}%</span></div>`;
-    }).join('');
-  }catch(e){console.warn('Price error',e)}
+    const symbols=Object.values(binanceMap);
+    const url='https://api.binance.com/api/v3/ticker/24hr?symbols='+encodeURIComponent(JSON.stringify(symbols));
+    const r=await fetch(url);
+    if(r.ok){
+      const arr=await r.json();
+      const bySym={};arr.forEach(x=>{bySym[x.symbol]=x});
+      const newPrices={...stableDefaults};
+      for(const [tok,sym] of Object.entries(binanceMap)){
+        const x=bySym[sym];
+        if(x) newPrices[tok]=parseFloat(x.lastPrice);
+      }
+      prices=newPrices;
+      // Update the top bar
+      const tkns=[{s:'ETH'},{s:'SOL'},{s:'BNB'},{s:'AVAX'},{s:'MATIC'},{s:'TON'},{s:'HYPE'}];
+      document.getElementById('pricesBar').innerHTML=tkns.map(t=>{
+        const x=bySym[binanceMap[t.s]];if(!x)return'';
+        const c=parseFloat(x.priceChangePercent||0).toFixed(2);const pos=c>=0;
+        return'<div class="pc"><span class="sym">'+t.s+'</span><span class="prc">'+fUSD(parseFloat(x.lastPrice))+'</span><span class="chg '+(pos?'pos':'neg')+'">'+(pos?'+':'')+c+'%</span></div>';
+      }).join('');
+      ok=true;
+    }
+  }catch(e){console.warn('Binance price error',e)}
+
+  // Fallback to CoinGecko via CORS proxy if Binance failed
+  if(!ok){
+    try{
+      const url='https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana,binancecoin,avalanche-2,matic-network,the-open-network,hyperliquid&vs_currencies=usd&include_24hr_change=true';
+      const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(url));
+      const d=await r.json();
+      prices={ETH:d.ethereum?.usd,SOL:d.solana?.usd,BNB:d.binancecoin?.usd,AVAX:d['avalanche-2']?.usd,MATIC:d['matic-network']?.usd,TON:d['the-open-network']?.usd,HYPE:d['hyperliquid']?.usd,...stableDefaults};
+      const tkns=[{id:'ethereum',s:'ETH'},{id:'solana',s:'SOL'},{id:'binancecoin',s:'BNB'},{id:'avalanche-2',s:'AVAX'},{id:'matic-network',s:'MATIC'},{id:'the-open-network',s:'TON'},{id:'hyperliquid',s:'HYPE'}];
+      document.getElementById('pricesBar').innerHTML=tkns.map(t=>{
+        const x=d[t.id];if(!x)return'';
+        const c=(x.usd_24h_change||0).toFixed(2);const pos=c>=0;
+        return'<div class="pc"><span class="sym">'+t.s+'</span><span class="prc">'+fUSD(x.usd)+'</span><span class="chg '+(pos?'pos':'neg')+'">'+(pos?'+':'')+c+'%</span></div>';
+      }).join('');
+    }catch(e){console.warn('Price fallback error',e)}
+  }
 }
 
 // BALANCES
